@@ -46,7 +46,7 @@ const games = [
     { "label": "Super Smash Bros. Ultimate", "value": "SSBU", "videogameId": 1386 }, { "label": "Super Street Fighter II Turbo", "value": "ST", "videogameId": 33 },
     { "label": "Tekken 7", "value": "TEKKEN7", "videogameId": 17, "hidden": true }, { "label": "Tekken 8", "value": "TEKKEN8", "videogameId": 49783 },
     { "label": "The King of Fighters XV", "value": "KOF XV", "videogameId": 36963 }, { "label": "Ultimate Marvel vs. Capcom 3", "value": "UMVC3", "videogameId": 10, "hidden": true },
-    { "label": "Under Night In-Birth II Sys:Celes", "value": "UNISC", "videogameId": 50203 }, { "label": "Vampire Savior", "value": "VSAVIOR", "videogameId": 11602 },
+    { "label": "Under Night In-Birth II Sys:Celes", "value": "UNISC", "videogameId": 50203 }
 ];
 const southAmericanCountries = ["Brazil","Argentina","Chile","Colombia","Peru","Uruguay","Paraguay","Ecuador","Bolivia","Venezuela"];
 
@@ -60,7 +60,7 @@ function extrairSlugTorneio(url) { if (!url) return null; const match = url.matc
 // ==================== LIGAS MONITORADAS ====================
 const LIGAS_MONITORADAS = [
     { slug: 'kombat-ranking-mk1', label: 'Kombat Ranking MK1', rankingUrl: 'https://www.start.gg/league/kombat-ranking-mk1/standings' },
-    { slug: 'ranking-brasil-tekken-8-2026', label: 'Ranking Tekken 8 BR 2026', rankingUrl: 'https://www.start.gg/league/ranking-brasil-tekken-8-2026/standings' },
+    { slug: 'kombat-zone-ranking-brasil-tekken-8-2026', label: 'Kombat Zone Tekken 8 BR 2026', rankingUrl: 'https://www.start.gg/league/kombat-zone-ranking-brasil-tekken-8-2026/standings' },
     { slug: 'kampeonato-brasileiro-de-mortal-kombat-1-temporada-1', label: 'Kampeonato Brasileiro MK1', rankingUrl: 'https://www.start.gg/league/kampeonato-brasileiro-de-mortal-kombat-1-temporada-1/standings' },
     { slug: 'raven-s-championship', label: "Raven's Championship", rankingUrl: 'https://www.start.gg/league/raven-s-championship/standings' },
     { slug: 'liga-de-kolossos-2-edi-o', label: 'Liga de Kolossos 2ª Edição', rankingUrl: 'https://www.start.gg/league/liga-de-kolossos-2-edi-o/standings' },
@@ -530,10 +530,8 @@ function gerarLinkGoogleCalendar(t){const i=formatarDataGoogle(t.startAt),f=form
 async function pesquisar() {
     const gameObj = games.find(g => g.value === document.getElementById("campo_jogo").value), typeVal = document.getElementById("campo_tipo").value, localVal = document.getElementById("campo_local").value;
     const container = document.getElementById("resultados"), status = document.getElementById("status"); container.innerHTML = ""; status.classList.remove("hidden");
-    const query = `query Tournaments($vId:[ID], $isOnline:Boolean, $country:String){
-      tournaments(query:{perPage:40, filter:{upcoming:true, videogameIds:$vId, hasOnlineEvents:$isOnline, countryCode:$country}}){
-        nodes{
-          name,url,startAt,registrationClosesAt,isRegistrationOpen,addrState,numAttendees,
+    const camposNode = `
+          id,name,url,startAt,endAt,registrationClosesAt,isRegistrationOpen,addrState,numAttendees,
           images{url,type},streams{streamName,streamSource},
           streamQueue{
             stream{streamName},
@@ -549,29 +547,60 @@ async function pesquisar() {
             }
           },
           owner{name,slug,player{gamerTag},location{country}},
-          events(limit:1){
+          events(filter:{videogameId:$vId}){
+            id
+            name
+            slug
+            startAt
+            numEntrants
             checkInEnabled
             checkInDuration
             checkInBuffer
             state
-            phases { state }
-          }
-        }
+          }`;
+    const queryUpcoming = `query TournamentsUpcoming($vId:[ID], $isOnline:Boolean, $country:String){
+      tournaments(query:{perPage:40, sortBy:"startAt asc", filter:{upcoming:true, videogameIds:$vId, hasOnlineEvents:$isOnline, countryCode:$country}}){
+        nodes{${camposNode}}
+      }
+    }`;
+    const queryLongRunning = `query TournamentsLongRunning($vId:[ID], $isOnline:Boolean, $country:String, $afterDate:Timestamp){
+      tournaments(query:{perPage:40, sortBy:"startAt desc", filter:{afterDate:$afterDate, videogameIds:$vId, hasOnlineEvents:$isOnline, countryCode:$country}}){
+        nodes{${camposNode}}
       }
     }`;
     try {
-        const vars = { vId: [gameObj.videogameId], isOnline: typeVal === "online" };
-        if (typeVal === "offline") vars.country = localVal;
+        const baseVars = { vId: [gameObj.videogameId], isOnline: typeVal === "online" };
+        if (typeVal === "offline") baseVars.country = localVal;
         
-        const json = await callStartGG(query, vars); let nodes = json.data?.tournaments?.nodes || [];
+        const varsUpcoming = { ...baseVars };
+        const varsLongRunning = { ...baseVars, afterDate: Math.floor(Date.now()/1000) - (400*24*60*60) };
+        
+        const [jsonUpcoming, jsonLongRunning] = await Promise.all([
+            callStartGG(queryUpcoming, varsUpcoming),
+            callStartGG(queryLongRunning, varsLongRunning)
+        ]);
+        const nodesA = jsonUpcoming.data?.tournaments?.nodes || [];
+        const nodesB = jsonLongRunning.data?.tournaments?.nodes || [];
+        
+        const vistos = new Set();
+        let nodes = [...nodesA, ...nodesB].filter(t => {
+            if (vistos.has(t.id)) return false;
+            vistos.add(t.id);
+            return true;
+        });
+        
+        const agora = Math.floor(Date.now()/1000);
+        nodes = nodes.filter(t => (t.endAt || t.startAt) >= agora);
         
         if (typeVal === "online" && localVal === "south-america") {
             nodes = nodes.filter(t => southAmericanCountries.includes(t.owner?.location?.country));
         }
         
         status.classList.add("hidden"); atualizarPainelDisponibilidade(nodes);
+        
         nodes.forEach((t, i) => {
             const timerId = `timer_${i}_${Date.now()}`, dEnc = t.registrationClosesAt ? new Date(t.registrationClosesAt*1000) : null, inscritos = t.numAttendees ?? 0;
+            const firstEvent = t.events?.[0] || null;
             const rawSlug = (t.owner?.slug||'').replace('user/',''), toName = t.owner?.player?.gamerTag || (!/^[0-9A-F]{6,}$/i.test(rawSlug) && rawSlug ? rawSlug : (t.owner?.name || 'Desconhecido'));
             const banner = t.images?.find(img => img.type==='banner')?.url || t.images?.[0]?.url || '';
             let streamHTML = ""; const isLiveNow = t.streamQueue && t.streamQueue.some(q => q.sets && q.sets.some(s => s.state===2 || s.state==='ACTIVE'));
@@ -595,13 +624,18 @@ async function pesquisar() {
             const ligaBadgeHTML = ligaInfo ? `<div class="league-badge"><i class="fa-solid fa-trophy" style="font-size:8px;color:#a855f7;"></i>&nbsp;${ligaInfo.label}</div>` : '';
             const rankingBtnHTML = ligaInfo ? `<button onclick="abrirRanking('${ligaInfo.slug}','${ligaInfo.label.replace(/'/g,"\\'")}','${ligaInfo.rankingUrl}')" class="btn-ranking w-full"><i class="fa-solid fa-ranking-star"></i> RANKING</button>` : '';
 
+            let eventsListHTML = '';
+            if (t.events && t.events.length > 1) {
+                const eventLinks = t.events.map(ev => `<a href="https://start.gg/${ev.slug}" target="_blank" onclick="event.stopPropagation();" class="block text-[11px] font-bold text-slate-300 hover:text-red-400 transition py-1 border-b border-white/5 last:border-0">${ev.name}</a>`).join('');
+                eventsListHTML = `<div class="mt-2 pt-2 border-t border-white/10"><p class="text-[10px] font-black text-slate-500 uppercase mb-1">Eventos</p>${eventLinks}</div>`;
+            }
+
             const card = document.createElement("div"); card.className = "glass-card rounded-xl flex flex-col justify-between overflow-hidden";
             let encHTML = dEnc ? `<div class="mt-1"><p class="text-[10px] text-slate-400 font-bold uppercase italic">Inscrições encerram em: ${dEnc.toLocaleDateString('pt-BR')} às ${dEnc.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p><p id="${timerId}" class="text-[10px] timer-red uppercase italic">Calculando...</p></div>` : "";
-            card.innerHTML = `<div style="position:relative;height:130px;overflow:hidden;background:#111;">${banner?`<img src="${banner}" alt="banner" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`:''}<div style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(20,20,24,0.9) 100%);"></div><div style="position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;"><span class="text-[10px] bg-red-900 text-red-100 px-2 py-1 rounded font-bold uppercase tracking-wider">${typeVal}</span><span class="text-xs text-white font-bold" style="text-shadow:0 1px 4px rgba(0,0,0,0.8)">${new Date(t.startAt*1000).toLocaleDateString('pt-BR')}</span></div><div class="attendees-icon-left" onclick="event.stopPropagation();abrirAttendees('${t.url}')" title="Ver Inscritos"><i class="fa-solid fa-users text-xs"></i></div>${streamHTML}</div><div class="p-5 flex flex-col flex-1">${bracketBadgeHTML}${ligaBadgeHTML}<h3 class="font-bold text-lg text-white mb-2 leading-tight">${t.name}</h3><p class="text-[11px] font-black uppercase ${t.isRegistrationOpen?'text-green-500':'text-red-500'}">${t.isRegistrationOpen?'Inscrição Aberta':'Inscrição Fechada'}</p><div class="flex flex-col gap-1 mt-2"><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-users"></i> ${inscritos} inscrito${inscritos!==1?'s':''}</p><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-crown"></i> TO: ${toName}</p></div>${encHTML}<p class="text-sm text-slate-400 mt-3 italic">${t.addrState?`<i class="fas fa-map-marker-alt"></i> ${t.addrState}`:`<i class="fas fa-globe"></i> ${t.owner?.location?.country||'Online'}`}</p><div class="mt-4 space-y-2">${rankingBtnHTML}<a href="https://start.gg${t.url}" target="_blank" class="block text-center bg-red-700 hover:bg-red-600 text-white font-black py-3 rounded-lg uppercase text-sm tracking-tighter transition shadow-sm">Página do Torneio</a><a href="${gerarLinkGoogleCalendar(t)}" target="_blank" class="block text-center btn-calendar text-slate-300 font-bold py-2 rounded-lg transition uppercase text-[10px] tracking-wider"><i class="fa-solid fa-calendar-plus mr-1"></i> Add ao Google Calendar</a><a href="javascript:void(0)" onclick="event.stopPropagation();abrirBracket('${t.url}')" class="btn-bracket"><i class="fa-solid fa-sitemap mr-1"></i> BRACKET</a></div></div>`;
+            card.innerHTML = `<div style="position:relative;height:130px;overflow:hidden;background:#111;">${banner?`<img src="${banner}" alt="banner" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`:''}<div style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(20,20,24,0.9) 100%);"></div><div style="position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;"><span class="text-[10px] bg-red-900 text-red-100 px-2 py-1 rounded font-bold uppercase tracking-wider">${typeVal}</span><span class="text-xs text-white font-bold" style="text-shadow:0 1px 4px rgba(0,0,0,0.8)">${new Date(t.startAt*1000).toLocaleDateString('pt-BR')}</span></div><div class="attendees-icon-left" onclick="event.stopPropagation();abrirAttendees('${t.url}')" title="Ver Inscritos"><i class="fa-solid fa-users text-xs"></i></div>${streamHTML}</div><div class="p-5 flex flex-col flex-1">${bracketBadgeHTML}${ligaBadgeHTML}<h3 class="font-bold text-lg text-white mb-2 leading-tight">${t.name}</h3><p class="text-[11px] font-black uppercase ${t.isRegistrationOpen?'text-green-500':'text-red-500'}">${t.isRegistrationOpen?'Inscrição Aberta':'Inscrição Fechada'}</p><div class="flex flex-col gap-1 mt-2"><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-users"></i> ${inscritos} inscrito${inscritos!==1?'s':''}</p><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-crown"></i> TO: ${toName}</p></div>${encHTML}${eventsListHTML}<p class="text-sm text-slate-400 mt-3 italic">${t.addrState?`<i class="fas fa-map-marker-alt"></i> ${t.addrState}`:`<i class="fas fa-globe"></i> ${t.owner?.location?.country||'Online'}`}</p><div class="mt-4 space-y-2">${rankingBtnHTML}<a href="https://start.gg${t.url}" target="_blank" class="block text-center bg-red-700 hover:bg-red-600 text-white font-black py-3 rounded-lg uppercase text-sm tracking-tighter transition shadow-sm">Página do Torneio</a><a href="${gerarLinkGoogleCalendar(t)}" target="_blank" class="block text-center btn-calendar text-slate-300 font-bold py-2 rounded-lg transition uppercase text-[10px] tracking-wider"><i class="fa-solid fa-calendar-plus mr-1"></i> Add ao Google Calendar</a><a href="javascript:void(0)" onclick="event.stopPropagation();abrirBracket('${t.url}')" class="btn-bracket"><i class="fa-solid fa-sitemap mr-1"></i> BRACKET</a></div></div>`;
             container.appendChild(card);
-            const eventData = t.events?.[0] || null;
-            const checkInData = eventData ? { checkInEnabled: eventData.checkInEnabled, checkInDuration: eventData.checkInDuration, checkInBuffer: eventData.checkInBuffer } : null;
-            const eventState = eventData?.state || null;
+            const checkInData = firstEvent ? { checkInEnabled: firstEvent.checkInEnabled, checkInDuration: firstEvent.checkInDuration, checkInBuffer: firstEvent.checkInBuffer } : null;
+            const eventState = firstEvent?.state || null;
             if (t.registrationClosesAt || (checkInData && checkInData.checkInEnabled)) {
                 iniciarTimer(timerId, t.registrationClosesAt, checkInData, t.startAt, eventState);
             }
