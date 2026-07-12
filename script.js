@@ -60,7 +60,7 @@ function extrairSlugTorneio(url) { if (!url) return null; const match = url.matc
 // ==================== LIGAS MONITORADAS ====================
 const LIGAS_MONITORADAS = [
     { slug: 'kombat-ranking-mk1', label: 'Kombat Ranking MK1', rankingUrl: 'https://www.start.gg/league/kombat-ranking-mk1/standings' },
-    { slug: 'ranking-brasil-tekken-8-2026', label: 'Ranking Brasil Tekken 8 2026', rankingUrl: 'https://www.start.gg/league/ranking-brasil-tekken-8-2026/standings' },,
+    { slug: 'kombat-zone-ranking-brasil-tekken-8-2026', label: 'Kombat Zone Tekken 8 BR 2026', rankingUrl: 'https://www.start.gg/league/kombat-zone-ranking-brasil-tekken-8-2026/standings' },
     { slug: 'kampeonato-brasileiro-de-mortal-kombat-1-temporada-1', label: 'Kampeonato Brasileiro MK1', rankingUrl: 'https://www.start.gg/league/kampeonato-brasileiro-de-mortal-kombat-1-temporada-1/standings' },
     { slug: 'raven-s-championship', label: "Raven's Championship", rankingUrl: 'https://www.start.gg/league/raven-s-championship/standings' },
     { slug: 'liga-de-kolossos-2-edi-o', label: 'Liga de Kolossos 2ª Edição', rankingUrl: 'https://www.start.gg/league/liga-de-kolossos-2-edi-o/standings' },
@@ -240,6 +240,8 @@ function getFlagHTMLBracket(entrant) {
     return `<img src="https://flagcdn.com/w40/${COUNTRY_MAP[c].toLowerCase()}.png" class="brk-flag-img">`;
 }
 
+let poolBracketTypeMap = {};
+
 async function abrirBracket(tournamentUrl) {
     const sidebar = document.getElementById('bracket_sidebar'), overlay = document.getElementById('bracket_overlay'), content = document.getElementById('bracket_content');
     const eventSelect = document.getElementById('bracketEventSelect'), poolSelect = document.getElementById('bracketPoolSelect');
@@ -279,7 +281,7 @@ async function carregarFasesEPools(eventSlug) {
         const queryPhases = `query($slug: String!) { 
             event(slug: $slug) { 
                 phases { 
-                    id name 
+                    id name bracketType
                     phaseGroups(query: {perPage: 50}) { 
                         nodes { id displayIdentifier } 
                     } 
@@ -297,14 +299,17 @@ async function carregarFasesEPools(eventSlug) {
 
         let optionsHtml = '';
         let firstPoolId = null;
+        poolBracketTypeMap = {};
         
         phasesList.forEach(phase => {
             const groups = phase.phaseGroups?.nodes || [];
             if (groups.length === 1) {
+                poolBracketTypeMap[groups[0].id] = phase.bracketType;
                 if (!firstPoolId) firstPoolId = groups[0].id;
                 optionsHtml += `<option value="${groups[0].id}">${phase.name}</option>`;
             } else if (groups.length > 1) {
                 groups.forEach(g => {
+                    poolBracketTypeMap[g.id] = phase.bracketType;
                     if (!firstPoolId) firstPoolId = g.id;
                     optionsHtml += `<option value="${g.id}">${phase.name} - Grupo ${g.displayIdentifier}</option>`;
                 });
@@ -315,7 +320,7 @@ async function carregarFasesEPools(eventSlug) {
             poolSelect.innerHTML = optionsHtml;
             poolSelect.style.display = 'block'; 
             poolSelect.value = firstPoolId;
-            await carregarBracketPool(firstPoolId, content);
+            await carregarChave(firstPoolId, content);
         } else {
             content.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">Nenhuma bracket encontrada.</div>'; 
             poolSelect.style.display = 'none';
@@ -330,7 +335,51 @@ async function onBracketPoolChange() {
     const content = document.getElementById('bracket_content');
     if (!select.value) return;
     content.innerHTML = '<div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando partidas...</p></div>';
-    await carregarBracketPool(select.value, content);
+    await carregarChave(select.value, content);
+}
+
+async function carregarChave(phaseGroupId, container) {
+    const tipo = poolBracketTypeMap[phaseGroupId];
+    if (tipo === 'ROUND_ROBIN') { await carregarGrupoRR(phaseGroupId, container); } else { await carregarBracketPool(phaseGroupId, container); }
+}
+
+async function carregarGrupoRR(phaseGroupId, container) {
+    try {
+        const query = `query($id: ID!) { 
+            phaseGroup(id: $id) { 
+                standings(query: {perPage: 64}) { nodes { placement entrant { id name participants { user { location { country } } } } } }
+                sets(page:1,perPage:100) { nodes { id state slots { entrant { id } standing { stats { score { value } } } } } }
+            } 
+        }`;
+        const json = await callStartGG(query, { id: phaseGroupId });
+        const standings = json.data?.phaseGroup?.standings?.nodes || [];
+        const sets = json.data?.phaseGroup?.sets?.nodes || [];
+
+        if (standings.length === 0) { container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">Nenhum participante encontrado neste grupo.</div>'; return; }
+
+        const record = {};
+        standings.forEach(s => { record[s.entrant.id] = { w: 0, l: 0 }; });
+        sets.forEach(set => {
+            if (set.state !== 3) return;
+            const p1 = set.slots[0], p2 = set.slots[1];
+            if (!p1?.entrant || !p2?.entrant) return;
+            const s1 = p1.standing?.stats?.score?.value ?? 0, s2 = p2.standing?.stats?.score?.value ?? 0;
+            if (s1 === s2) return;
+            const winnerId = s1 > s2 ? p1.entrant.id : p2.entrant.id, loserId = s1 > s2 ? p2.entrant.id : p1.entrant.id;
+            if (record[winnerId]) record[winnerId].w++;
+            if (record[loserId]) record[loserId].l++;
+        });
+
+        const rows = standings.slice().sort((a,b) => (a.placement??999)-(b.placement??999)).map(s => ({ ...s, w: record[s.entrant.id]?.w??0, l: record[s.entrant.id]?.l??0 }));
+
+        let html = `<div class="brk-container"><div class="brk-label">Fase de Grupos</div><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th>#</th><th>Jogador</th><th>V</th><th>D</th></tr></thead><tbody>`;
+        rows.forEach(r => {
+            const qualified = r.placement && r.placement <= 2 ? 'rr-qualified' : '';
+            html += `<tr class="${qualified}"><td class="rr-pos">${r.placement??'-'}</td><td class="rr-name-cell">${getFlagHTMLBracket(r.entrant)}<span>${r.entrant?.name||'TBD'}</span></td><td class="rr-w">${r.w}</td><td class="rr-l">${r.l}</td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+        container.innerHTML = html;
+    } catch (e) { container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">Erro ao carregar grupo.</div>'; }
 }
 
 async function carregarBracketPool(phaseGroupId, container) {
@@ -469,6 +518,16 @@ function iniciarTimer(id, registrationClosesAt, checkInData, eventStartAt, event
         if (!document.getElementById(id)) { clearInterval(interval); return; }
         const t = now();
 
+        if (checkIn && t >= checkIn.start && t < checkIn.end) {
+            const diff = checkIn.end - t;
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            el.innerHTML = `✅ CHECK-IN ABERTO – FECHA EM: ${h}h ${m}m ${s}s`;
+            el.className = 'timer-checkin';
+            return;
+        }
+
         if (regClose && t < regClose) {
             const diff = regClose - t;
             const D = Math.floor(diff / 86400000);
@@ -477,16 +536,6 @@ function iniciarTimer(id, registrationClosesAt, checkInData, eventStartAt, event
             const s = Math.floor((diff % 60000) / 1000);
             el.innerHTML = `⏳ INSCRIÇÕES FECHAM EM: ${D}d ${h}h ${m}m ${s}s`;
             el.className = 'timer-red';
-            return;
-        }
-
-        if (checkIn && t >= checkIn.start && t < checkIn.end) {
-            const diff = checkIn.end - t;
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            const s = Math.floor((diff % 60000) / 1000);
-            el.innerHTML = `✅ CHECK-IN ABERTO – FECHA EM: ${h}h ${m}m ${s}s`;
-            el.className = 'timer-checkin';
             return;
         }
 
@@ -606,9 +655,10 @@ async function pesquisar() {
         status.classList.add("hidden"); atualizarPainelDisponibilidade(nodes);
         
         nodes.forEach((t, i) => {
-            const timerId = `timer_${i}_${Date.now()}`, dEnc = t.registrationClosesAt ? new Date(t.registrationClosesAt*1000) : null, inscritos = t.numAttendees ?? 0;
-            const firstEvent = t.events?.[0] || null;
             const dataEventoProximo = proximaDataEvento(t);
+            const eventoAtual = (t.events && t.events.length > 0) ? t.events.reduce((a, b) => Math.abs((a.startAt||t.startAt) - dataEventoProximo) <= Math.abs((b.startAt||t.startAt) - dataEventoProximo) ? a : b) : null;
+            const regCloseEfetivo = (eventoAtual && eventoAtual.startAt && t.registrationClosesAt) ? Math.min(t.registrationClosesAt, eventoAtual.startAt) : t.registrationClosesAt;
+            const timerId = `timer_${i}_${Date.now()}`, dEnc = regCloseEfetivo ? new Date(regCloseEfetivo*1000) : null, inscritos = t.numAttendees ?? 0;
             const rawSlug = (t.owner?.slug||'').replace('user/',''), toName = t.owner?.player?.gamerTag || (!/^[0-9A-F]{6,}$/i.test(rawSlug) && rawSlug ? rawSlug : (t.owner?.name || 'Desconhecido'));
             const banner = t.images?.find(img => img.type==='banner')?.url || t.images?.[0]?.url || '';
             let streamHTML = ""; const isLiveNow = t.streamQueue && t.streamQueue.some(q => q.sets && q.sets.some(s => s.state===2 || s.state==='ACTIVE'));
@@ -642,10 +692,10 @@ async function pesquisar() {
             let encHTML = dEnc ? `<div class="mt-1"><p class="text-[10px] text-slate-400 font-bold uppercase italic">Inscrições encerram em: ${dEnc.toLocaleDateString('pt-BR')} às ${dEnc.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p><p id="${timerId}" class="text-[10px] timer-red uppercase italic">Calculando...</p></div>` : "";
             card.innerHTML = `<div style="position:relative;height:130px;overflow:hidden;background:#111;">${banner?`<img src="${banner}" alt="banner" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`:''}<div style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(20,20,24,0.9) 100%);"></div><div style="position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;"><span class="text-[10px] bg-red-900 text-red-100 px-2 py-1 rounded font-bold uppercase tracking-wider">${typeVal}</span><span class="text-xs text-white font-bold" style="text-shadow:0 1px 4px rgba(0,0,0,0.8)">${new Date(dataEventoProximo*1000).toLocaleDateString('pt-BR')}</span></div><div class="attendees-icon-left" onclick="event.stopPropagation();abrirAttendees('${t.url}')" title="Ver Inscritos"><i class="fa-solid fa-users text-xs"></i></div>${streamHTML}</div><div class="p-5 flex flex-col flex-1">${bracketBadgeHTML}${ligaBadgeHTML}<h3 class="font-bold text-lg text-white mb-2 leading-tight">${t.name}</h3><p class="text-[11px] font-black uppercase ${t.isRegistrationOpen?'text-green-500':'text-red-500'}">${t.isRegistrationOpen?'Inscrição Aberta':'Inscrição Fechada'}</p><div class="flex flex-col gap-1 mt-2"><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-users"></i> ${inscritos} inscrito${inscritos!==1?'s':''}</p><p class="text-[11px] font-bold text-slate-400 uppercase"><i class="fas fa-crown"></i> TO: ${toName}</p></div>${encHTML}${eventsListHTML}<p class="text-sm text-slate-400 mt-3 italic">${t.addrState?`<i class="fas fa-map-marker-alt"></i> ${t.addrState}`:`<i class="fas fa-globe"></i> ${t.owner?.location?.country||'Online'}`}</p><div class="mt-4 space-y-2">${rankingBtnHTML}<a href="https://start.gg${t.url}" target="_blank" class="block text-center bg-red-700 hover:bg-red-600 text-white font-black py-3 rounded-lg uppercase text-sm tracking-tighter transition shadow-sm">Página do Torneio</a><a href="${gerarLinkGoogleCalendar(t)}" target="_blank" class="block text-center btn-calendar text-slate-300 font-bold py-2 rounded-lg transition uppercase text-[10px] tracking-wider"><i class="fa-solid fa-calendar-plus mr-1"></i> Add ao Google Calendar</a><a href="javascript:void(0)" onclick="event.stopPropagation();abrirBracket('${t.url}')" class="btn-bracket"><i class="fa-solid fa-sitemap mr-1"></i> BRACKET</a></div></div>`;
             container.appendChild(card);
-            const checkInData = firstEvent ? { checkInEnabled: firstEvent.checkInEnabled, checkInDuration: firstEvent.checkInDuration, checkInBuffer: firstEvent.checkInBuffer } : null;
-            const eventState = firstEvent?.state || null;
-            if (t.registrationClosesAt || (checkInData && checkInData.checkInEnabled)) {
-                iniciarTimer(timerId, t.registrationClosesAt, checkInData, t.startAt, eventState);
+            const checkInData = eventoAtual ? { checkInEnabled: eventoAtual.checkInEnabled, checkInDuration: eventoAtual.checkInDuration, checkInBuffer: eventoAtual.checkInBuffer } : null;
+            const eventState = eventoAtual?.state || null;
+            if (regCloseEfetivo || (checkInData && checkInData.checkInEnabled)) {
+                iniciarTimer(timerId, regCloseEfetivo, checkInData, eventoAtual?.startAt || t.startAt, eventState);
             }
         });
     } catch (e) { status.classList.add("hidden"); }
