@@ -71,13 +71,27 @@ const LIGAS_MONITORADAS = [
     { slug: '2xko-community-events-program-mixed-duo', label: '2XKO Community Events - Mixed Duo', rankingUrl: 'https://www.start.gg/league/2xko-community-events-program-mixed-duo/standings' },
     { slug: '2xko', label: '2XKO', rankingUrl: 'https://www.start.gg/league/2xko/standings' }
 ];
+
+// >>> CORREÇÃO: leagueTournamentMap agora guarda um ARRAY de ligas por torneio,
+// em vez de sobrescrever com apenas a última liga processada.
 let leagueTournamentMap = {};
-function verificarLigaDeTorneio(url) { const slug = extrairSlugTorneio(url); return slug ? (leagueTournamentMap[slug] || null) : null; }
+function verificarLigaDeTorneio(url) {
+    const slug = extrairSlugTorneio(url);
+    return slug ? (leagueTournamentMap[slug] || []) : [];
+}
 async function carregarTorneiosDasLigas() {
     const query = `query LeagueEvents($slug: String) { league(slug: $slug) { events(query: { page: 1, perPage: 100 }) { nodes { tournament { url } } } } }`;
     const fetches = LIGAS_MONITORADAS.map(liga => callStartGG(query, { slug: liga.slug }).then(json => {
         const nodes = json.data?.league?.events?.nodes || [];
-        nodes.forEach(node => { const slug = extrairSlugTorneio(node.tournament?.url); if (slug) leagueTournamentMap[slug] = { label: liga.label, rankingUrl: liga.rankingUrl, slug: liga.slug }; });
+        nodes.forEach(node => {
+            const slug = extrairSlugTorneio(node.tournament?.url);
+            if (!slug) return;
+            if (!leagueTournamentMap[slug]) leagueTournamentMap[slug] = [];
+            // evita duplicar a mesma liga caso o torneio tenha múltiplos eventos na mesma liga
+            if (!leagueTournamentMap[slug].some(l => l.slug === liga.slug)) {
+                leagueTournamentMap[slug].push({ label: liga.label, rankingUrl: liga.rankingUrl, slug: liga.slug });
+            }
+        });
     }).catch(() => {}));
     await Promise.all(fetches);
 }
@@ -680,9 +694,17 @@ async function pesquisar() {
                 }
             }
 
-            const ligaInfo = verificarLigaDeTorneio(t.url);
-            const ligaBadgeHTML = ligaInfo ? `<div class="league-badge"><i class="fa-solid fa-trophy" style="font-size:8px;color:#a855f7;"></i>&nbsp;${ligaInfo.label}</div>` : '';
-            const rankingBtnHTML = ligaInfo ? `<button onclick="abrirRanking('${ligaInfo.slug}','${ligaInfo.label.replace(/'/g,"\\'")}','${ligaInfo.rankingUrl}')" class="btn-ranking w-full"><i class="fa-solid fa-ranking-star"></i> RANKING</button>` : '';
+            // >>> CORREÇÃO: torneios podem pertencer a mais de uma liga monitorada.
+            // Agora geramos um badge + um botão de ranking para CADA liga do torneio.
+            const ligasInfo = verificarLigaDeTorneio(t.url);
+            const ligaBadgeHTML = ligasInfo.map(liga =>
+                `<div class="league-badge"><i class="fa-solid fa-trophy" style="font-size:8px;color:#a855f7;"></i>&nbsp;${liga.label}</div>`
+            ).join('');
+            const rankingBtnHTML = ligasInfo.map(liga =>
+                `<button onclick="abrirRanking('${liga.slug}','${liga.label.replace(/'/g,"\\'")}','${liga.rankingUrl}')" class="btn-ranking w-full">
+                    <i class="fa-solid fa-ranking-star"></i> RANKING${ligasInfo.length > 1 ? `: ${liga.label}` : ''}
+                </button>`
+            ).join('');
 
             let eventsListHTML = '';
             if (t.events && t.events.length > 1) {
