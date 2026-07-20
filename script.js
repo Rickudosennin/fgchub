@@ -30,6 +30,7 @@ const games = [
     { "label": "Dragon Ball FighterZ", "value": "DBFZ", "videogameId": 287 }, { "label": "Fatal Fury: COTW", "value": "FFCOTW", "videogameId": 73221 },
     { "label": "Granblue Fantasy Versus: Rising", "value": "GBVSR", "videogameId": 48548 }, { "label": "Guilty Gear: Strive", "value": "GGST", "videogameId": 33945 },
     { "label": "Invincible Vs.", "value": "IVS", "videogameId": 108058 }, { "label": "Injustice 2", "value": "INJ2", "videogameId": 35 },
+    { "label": "Marvel Tokon", "value": "Marvel Tokon", "videogameId": 54073 },
     { "label": "Marvel vs. Capcom 2", "value": "MVC2", "videogameId": 125 }, { "label": "Melty Blood: Type Lumina", "value": "MBTL", "videogameId": 35879 }, 
     { 
   "label": "Mystery Game", 
