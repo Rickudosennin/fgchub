@@ -66,7 +66,7 @@ const LIGAS_MONITORADAS = [
     { slug: 'kampeonato-brasileiro-de-mortal-kombat-1-temporada-2', label: 'Kampeonato Brasileiro MK1 - T2', rankingUrl: 'https://www.start.gg/league/kampeonato-brasileiro-de-mortal-kombat-1-temporada-2/standings' },
     { slug: 'kampeonato-brasileiro-de-mortal-kombat-1-ranking-anual', label: 'Kampeonato Brasileiro MK1 - Ranking Anual', rankingUrl: 'https://www.start.gg/league/kampeonato-brasileiro-de-mortal-kombat-1-ranking-anual/standings' },
     { slug: 'raven-s-championship', label: "Raven's Championship", rankingUrl: 'https://www.start.gg/league/raven-s-championship/standings' },
-    { slug: 'liga-de-kolossos-2-edi-o', label: 'Liga de Kolossos 2ª Edição', rankingUrl: 'https://www.start.gg/league/liga-de-kolossos-2-edi-o/standings' },
+    { slug: 'liga-de-kolossos-3-edi-o', label: 'Liga de Kolossos 3ª Edição', rankingUrl: 'https://www.start.gg/league/liga-de-kolossos-3-edi-o/standings' },
     { slug: 'world-warrior-2026-capcom-pro-tour', label: 'World Warrior 2026 - Capcom Pro Tour', rankingUrl: 'https://www.start.gg/league/world-warrior-2026-capcom-pro-tour/standings' },
     { slug: 'rocket-league-championship-series-2026', label: 'Rocket League Championship Series 2026', rankingUrl: 'https://www.start.gg/league/rocket-league-championship-series-2026/standings' },
     { slug: '2xko-community-events-program-mixed-duo', label: '2XKO Community Events - Mixed Duo', rankingUrl: 'https://www.start.gg/league/2xko-community-events-program-mixed-duo/standings' },
