@@ -25,7 +25,7 @@ const COUNTRY_MAP = {
     "United Kingdom":"GB","Australia":"AU","Netherlands":"NL","Sweden":"SE"
 };
 const games = [
-    { "label": "2XKO", "value": "2XKO", "videogameId": 64423 }, { "label": "BlazBlue: Central Fiction", "value": "BBCF", "videogameId": 37 },
+    { "label": "2XKO", "value": "2XKO", "videogameId": 64423 }, { "label": "Avatar Legends: The Fighting Game", "value": "ALFG", "videogameId": 11429 }, { "label": "BlazBlue: Central Fiction", "value": "BBCF", "videogameId": 37 },
     { "label": "Brawlhalla", "value": "Brawlhalla", "videogameId": 15 }, { "label": "DNF Duel", "value": "DNF", "videogameId": 44345 },
     { "label": "Dragon Ball FighterZ", "value": "DBFZ", "videogameId": 287 }, { "label": "Fatal Fury: COTW", "value": "FFCOTW", "videogameId": 73221 },
     { "label": "Granblue Fantasy Versus: Rising", "value": "GBVSR", "videogameId": 48548 }, { "label": "Guilty Gear: Strive", "value": "GGST", "videogameId": 33945 },
