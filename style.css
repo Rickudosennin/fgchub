@@ -255,6 +255,53 @@ main { flex: 1; }
     .rr-table thead th { padding: 8px 10px; font-size: 11px; }
 }
 
+/* ========== BANNER LATERAL EXITLAG (DESKTOP) ========== */
+.side-banner-right {
+    display: none;
+    position: fixed;
+    top: 50%;
+    right: 2.5vw;
+    transform: translateY(-50%);
+    width: 260px;
+    z-index: 30;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 25px rgba(220, 38, 38, 0.35);
+    border: 2px solid #dc2626;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.side-banner-right:hover {
+    transform: translateY(-50%) scale(1.03);
+    box-shadow: 0 0 35px rgba(220, 38, 38, 0.55);
+}
+.side-banner-right img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+@media (min-width: 1600px) {
+    .side-banner-right { display: block; }
+}
+
+/* ========== BANNER EXITLAG (MOBILE/TABLET) ========== */
+.mobile-banner-exitlag {
+    display: block;
+    max-width: 56rem;
+    margin: 0 auto 24px auto;
+    padding: 0 4px;
+}
+.mobile-banner-exitlag img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 2px solid #dc2626;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
+}
+@media (min-width: 1600px) {
+    .mobile-banner-exitlag { display: none; }
+}
+
 /* Acessibilidade - deficientes visuais / navegação por teclado */
 .skip-link {
     position: absolute;
