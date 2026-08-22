@@ -73,8 +73,6 @@ const LIGAS_MONITORADAS = [
     { slug: '2xko', label: '2XKO', rankingUrl: 'https://www.start.gg/league/2xko/standings' }
 ];
 
-// >>> CORREÇÃO: leagueTournamentMap agora guarda um ARRAY de ligas por torneio,
-// em vez de sobrescrever com apenas a última liga processada.
 let leagueTournamentMap = {};
 function verificarLigaDeTorneio(url) {
     const slug = extrairSlugTorneio(url);
@@ -88,7 +86,6 @@ async function carregarTorneiosDasLigas() {
             const slug = extrairSlugTorneio(node.tournament?.url);
             if (!slug) return;
             if (!leagueTournamentMap[slug]) leagueTournamentMap[slug] = [];
-            // evita duplicar a mesma liga caso o torneio tenha múltiplos eventos na mesma liga
             if (!leagueTournamentMap[slug].some(l => l.slug === liga.slug)) {
                 leagueTournamentMap[slug].push({ label: liga.label, rankingUrl: liga.rankingUrl, slug: liga.slug });
             }
@@ -145,7 +142,6 @@ async function _carregarPaginaAttendees() {
     const isFirstPage = page === 1;
 
     if (!isFirstPage) {
-        // Mantém itens existentes, substitui apenas o bloco de paginação por spinner
         const old = document.getElementById('_attendees_pagination');
         if (old) old.innerHTML = '<div class="loading-attendees" style="padding:20px 0;"><div class="spinner"></div></div>';
     }
@@ -165,7 +161,6 @@ async function _carregarPaginaAttendees() {
             return;
         }
 
-        // Renderiza os itens desta página
         let html = '';
         const offset = _attendeesState.globalOffset;
         participants.forEach((p, i) => {
@@ -176,13 +171,29 @@ async function _carregarPaginaAttendees() {
                 : '<div style="width:28px;height:20px;background:rgba(255,255,255,0.05);border-radius:3px;"></div>';
             const safeGamerTag = (p.gamerTag || 'Sem nome').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const playerId = p.player?.id || '';
+            
+            // ========== SALVAR PLAYER NO LOCALSTORAGE ==========
+            if (playerId && p.gamerTag) {
+                try {
+                    if (typeof _salvarPlayerLocal === 'function') {
+                        _salvarPlayerLocal(playerId, p.gamerTag);
+                    } else {
+                        // Fallback: salva diretamente
+                        const lista = JSON.parse(localStorage.getItem('fgchub_local_players') || '[]');
+                        if (!lista.some(p => p.playerId === playerId)) {
+                            lista.push({ playerId, gamerTag: p.gamerTag });
+                            localStorage.setItem('fgchub_local_players', JSON.stringify(lista));
+                        }
+                    }
+                } catch (e) {}
+            }
+
             html += `<div class="attendee-item"><span class="attendee-number">#${idx + 1}</span>${flagHTML}<span class="attendee-name clickable" onclick="event.stopPropagation();toggleHistorico('${playerId}', '${safeGamerTag}', ${idx})">${p.gamerTag || 'Sem nome'}</span>${p.prefix ? `<span style="color:#aaa;font-size:11px;">${p.prefix}</span>` : ''}</div><div id="history-${idx}" style="display:none;"></div>`;
         });
 
         _attendeesState.globalOffset += participants.length;
         const hasMore = _attendeesState.globalOffset < total;
 
-        // Rodapé: contador + botão próxima página (se houver)
         const pageInfo = `<div style="text-align:center;padding:8px 0 4px;color:#666;font-size:11px;font-weight:bold;letter-spacing:0.5px;">Exibindo ${_attendeesState.globalOffset} de ${total}</div>`;
         const nextBtn = hasMore
             ? `<button onclick="_proximaPaginaAttendees()" style="display:block;width:100%;margin-top:8px;padding:11px;background:linear-gradient(to right,#991b1b,#dc2626);color:white;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:1px;border:none;border-radius:8px;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'"><i class="fa-solid fa-chevron-down" style="margin-right:6px;"></i>CARREGAR MAIS <span style="opacity:0.8;">(${total - _attendeesState.globalOffset} restantes)</span></button>`
@@ -218,11 +229,38 @@ function fecharAttendees() { document.getElementById('attendees_sidebar').classL
 // ==================== HISTORICO ====================
 async function buscarSetsDoEvento(eventId, playerId) {
     try {
-        const query = `query EventSets($eventId: ID!) { event(id: $eventId) { sets(perPage: 100, filters: {hideEmpty: true}) { nodes { winnerId slots { entrant { id participants { player { id } } } } } } } }`;
-        const json = await callStartGG(query, { eventId }); const sets = json.data?.event?.sets?.nodes || []; let wins = 0, losses = 0;
-        sets.forEach(set => { const playerSlot = set.slots?.find(slot => slot.entrant?.participants?.some(p => p.player?.id == playerId)); if (!playerSlot || !playerSlot.entrant) return; const myEntrantId = playerSlot.entrant.id; if (set.winnerId) { if (String(set.winnerId) === String(myEntrantId)) wins++; else losses++; } });
-        return { wins, losses, total: wins + losses };
-    } catch (e) { return { wins: 0, losses: 0, total: 0, error: true }; }
+        const query = `query EventSets($eventId: ID!) { event(id: $eventId) { sets(perPage: 100, filters: {hideEmpty: true}) { nodes { id winnerId slots { entrant { id participants { player { id } } } } } } } }`;
+        const json = await callStartGG(query, { eventId }); const sets = json.data?.event?.sets?.nodes || []; let wins = 0, losses = 0; const setsDetalhados = [];
+        sets.forEach(set => { const playerSlot = set.slots?.find(slot => slot.entrant?.participants?.some(p => p.player?.id == playerId)); if (!playerSlot || !playerSlot.entrant) return; const myEntrantId = playerSlot.entrant.id; if (set.winnerId) { const venceu = String(set.winnerId) === String(myEntrantId); if (venceu) wins++; else losses++; setsDetalhados.push({ setId: set.id, venceu }); } });
+        return { wins, losses, total: wins + losses, sets: setsDetalhados };
+    } catch (e) { return { wins: 0, losses: 0, total: 0, error: true, sets: [] }; }
+}
+
+// ==================== WINRATE POR PERSONAGEM (reports manuais no Git) ====================
+let _charReportsCache = null;
+async function buscarReportsChar() {
+    if (_charReportsCache) return _charReportsCache;
+    try {
+        const resp = await fetch('https://raw.githubusercontent.com/Rickudosennin/FGCTESTE/main/data/character-reports.json');
+        const json = await resp.json();
+        _charReportsCache = json.reports || [];
+    } catch (e) { _charReportsCache = []; }
+    return _charReportsCache;
+}
+
+function montarHtmlWinrateChar(statsChar, setsSemReport) {
+    let charHtml = '<div class="history-char-title">🎮 WinRate por Personagem</div>';
+    if (Object.keys(statsChar).length === 0) {
+        charHtml += '<div class="history-empty">Nenhum personagem reportado ainda.</div>';
+        return charHtml;
+    }
+    Object.entries(statsChar).forEach(([char, s]) => {
+        const wr = (s.wins + s.losses) > 0 ? Math.round((s.wins / (s.wins + s.losses)) * 100) : 0;
+        const cls = wr >= 60 ? 'history-winrate-60' : (wr >= 40 ? 'history-winrate-40' : 'history-winrate-0');
+        charHtml += `<div class="history-item"><span class="history-name">${char}</span><span class="history-placement ${cls}">${s.wins}W-${s.losses}L (${wr}%)</span></div>`;
+    });
+    if (setsSemReport > 0) charHtml += `<div class="history-item"><span class="history-name" style="opacity:.6">Sem char reportado</span><span class="history-placement" style="opacity:.6">${setsSemReport} sets</span></div>`;
+    return charHtml;
 }
 
 async function toggleHistorico(playerId, gamerTag, index) {
@@ -240,12 +278,26 @@ async function toggleHistorico(playerId, gamerTag, index) {
             if (!eventId) continue;
             const resultado = await buscarSetsDoEvento(eventId, playerId);
             if (resultado.total > 0 && !resultado.error) { totalWins += resultado.wins; totalLosses += resultado.losses; torneiosProcessados++; }
-            torneiosData.push({ name: tournamentName, wins: resultado.wins, losses: resultado.losses, placement: standing.placement, attendees: standing.container?.tournament?.numAttendees || '?' });
+            torneiosData.push({ name: tournamentName, wins: resultado.wins, losses: resultado.losses, placement: standing.placement, attendees: standing.container?.tournament?.numAttendees || '?', sets: resultado.sets || [] });
         }
         const totalPartidas = totalWins + totalLosses; const winRateGeral = totalPartidas > 0 ? Math.round((totalWins / totalPartidas) * 100) : 0;
         let wrClass = winRateGeral >= 60 ? 'history-winrate-60' : (winRateGeral >= 40 ? 'history-winrate-40' : 'history-winrate-0');
         let html = `<div class="player-history"><div class="history-title">🔍 ${gamerTag}</div><div class="legend-bar"><div class="legend-item"><span class="legend-dot green"></span> 60%+</div><div class="legend-item"><span class="legend-dot yellow"></span> 40-59%</div><div class="legend-item"><span class="legend-dot red"></span> &lt;40%</div></div><div class="history-winrate ${wrClass}">📊 WinRate: ${winRateGeral}%</div><div class="history-winrate-detail">${totalWins}W / ${totalLosses}L em ${torneiosProcessados} torneios</div>`;
         torneiosData.forEach(t => { const wr = t.wins + t.losses > 0 ? Math.round((t.wins / (t.wins + t.losses)) * 100) : 0; let itemWrClass = wr >= 60 ? 'history-winrate-60' : (wr >= 40 ? 'history-winrate-40' : 'history-winrate-0'); html += `<div class="history-item"><span class="history-name">${t.name}</span><span class="history-placement ${itemWrClass}">${t.wins}W-${t.losses}L (${wr}%) — ${t.placement}º/${t.attendees}</span></div>`; });
+
+        const todosSetsDoPlayer = torneiosData.flatMap(t => t.sets || []);
+        const reports = await buscarReportsChar();
+        const statsChar = {};
+        todosSetsDoPlayer.forEach(s => {
+            const rep = reports.find(r => String(r.setId) === String(s.setId) && String(r.playerId) === String(playerId));
+            if (!rep) return;
+            if (!statsChar[rep.character]) statsChar[rep.character] = { wins: 0, losses: 0 };
+            s.venceu ? statsChar[rep.character].wins++ : statsChar[rep.character].losses++;
+        });
+        const setsComReport = Object.values(statsChar).reduce((acc, c) => acc + c.wins + c.losses, 0);
+        const setsSemReport = todosSetsDoPlayer.length - setsComReport;
+        html += montarHtmlWinrateChar(statsChar, setsSemReport);
+
         historyDiv.innerHTML = html + `</div>`;
     } catch (e) { historyDiv.innerHTML = `<div class="player-history"><div class="history-empty">❌ Erro ao buscar histórico.</div></div>`; }
 }
@@ -695,8 +747,6 @@ async function pesquisar() {
                 }
             }
 
-            // >>> CORREÇÃO: torneios podem pertencer a mais de uma liga monitorada.
-            // Agora geramos um badge + um botão de ranking para CADA liga do torneio.
             const ligasInfo = verificarLigaDeTorneio(t.url);
             const ligaBadgeHTML = ligasInfo.map(liga =>
                 `<div class="league-badge"><i class="fa-solid fa-trophy" style="font-size:8px;color:#a855f7;"></i>&nbsp;${liga.label}</div>`
