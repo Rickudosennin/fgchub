@@ -79,6 +79,9 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
             ? Math.round((resultado.wins / (resultado.wins + resultado.losses)) * 100) 
             : 0;
 
+        const tournamentImages = s.container?.tournament?.images || [];
+        const tournamentIcon = tournamentImages.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
+
         torneios.push({
             name: s.container?.tournament?.name || '—',
             eventName: s.container?.name || '—',
@@ -88,11 +91,19 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
             losses: resultado.losses,
             winrate,
             date: startAt ? new Date(startAt * 1000).toLocaleDateString('pt-BR') : '—',
+            startAt: startAt || 0,
+            icon: tournamentIcon,
             isRecent
         });
 
         if (s.placement) colocacoes.push(s.placement);
     });
+
+    // Mais recente primeiro
+    torneios.sort((a, b) => b.startAt - a.startAt);
+    const colocacoesOrdenadas = torneios
+        .filter(t => t.placement && t.placement !== '?')
+        .map(t => ({ placement: t.placement, icon: t.icon }));
 
     const totalPartidas = totalWins + totalLosses;
     const total6m = wins6m + losses6m;
@@ -115,7 +126,7 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
         winrateLast6Months: total6m > 0 ? Math.round((wins6m / total6m) * 100) : 0,
         wins6m,
         losses6m,
-        recentForm: colocacoes.slice(0, 10),
+        recentForm: colocacoesOrdenadas.slice(0, 10),
         highlights,
         tournaments: torneios,
         updatedAt: new Date().toISOString()
@@ -126,6 +137,13 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
 async function _buscarPlayerAoVivo(playerId, gamerTag) {
     const query1 = `query PlayerHistory($id: ID!) {
         player(id: $id) {
+            user {
+                images {
+                    id
+                    type
+                    url
+                }
+            }
             recentStandings(limit: 15) {
                 placement
                 container {
@@ -136,6 +154,10 @@ async function _buscarPlayerAoVivo(playerId, gamerTag) {
                         tournament {
                             name
                             numAttendees
+                            images {
+                                type
+                                url
+                            }
                         }
                     }
                 }
@@ -144,6 +166,11 @@ async function _buscarPlayerAoVivo(playerId, gamerTag) {
     }`;
     const json1 = await callStartGG(query1, { id: playerId });
     const standings = json1.data?.player?.recentStandings || [];
+    const images = json1.data?.player?.user?.images || [];
+    // A API retorna o type como string ("profile"/"banner"); normaliza pra minúsculo
+    // caso algum torneio/usuário venha com variação de caixa.
+    const avatarUrl = images.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
+    const bannerUrl = images.find(img => (img.type || '').toLowerCase() === 'banner')?.url || null;
 
     const setsPorEvento = {};
     for (const standing of standings) {
@@ -153,7 +180,10 @@ async function _buscarPlayerAoVivo(playerId, gamerTag) {
         setsPorEvento[eventId] = resultado;
     }
 
-    return processarDadosPlayer(standings, setsPorEvento, gamerTag);
+    const dados = processarDadosPlayer(standings, setsPorEvento, gamerTag);
+    dados.avatarUrl = avatarUrl;
+    dados.bannerUrl = bannerUrl;
+    return dados;
 }
 
 // ==================== FUNÇÃO PRINCIPAL ====================
