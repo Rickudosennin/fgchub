@@ -6,13 +6,12 @@ const CACHE_MAX_IDADE_HORAS = 24;
 const LOCAL_PLAYERS_KEY = 'fgchub_local_players';
 const PROFILE_CACHE_PREFIX = 'fgchub_profile_';
 
-function _salvarPlayerLocal(playerId, gamerTag) {
+function _salvarPlayerLocal(playerId, gamerTag, prefix = '') {
     try {
         const lista = JSON.parse(localStorage.getItem(LOCAL_PLAYERS_KEY) || '[]');
         if (!lista.some(p => p.playerId === playerId)) {
-            lista.push({ playerId, gamerTag });
+            lista.push({ playerId, gamerTag, prefix });
             localStorage.setItem(LOCAL_PLAYERS_KEY, JSON.stringify(lista));
-            // Atualiza o contador visual se existir
             const contador = document.getElementById('contador_salvos');
             if (contador) contador.textContent = lista.length;
         }
@@ -43,7 +42,6 @@ function _lerPerfilCache(playerId) {
         const raw = localStorage.getItem(cacheKey);
         if (!raw) return null;
         const cacheData = JSON.parse(raw);
-        // Verifica se o cache ainda é fresco (menos de 24h)
         const idade = (Date.now() - cacheData.timestamp) / 3600000;
         if (idade < CACHE_MAX_IDADE_HORAS) {
             return cacheData.dados;
@@ -53,7 +51,7 @@ function _lerPerfilCache(playerId) {
 }
 
 // ==================== PROCESSAMENTO ====================
-function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
+function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
     const seisMesesAtras = Date.now() - 180 * 24 * 60 * 60 * 1000;
 
     let totalWins = 0, totalLosses = 0;
@@ -99,7 +97,6 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
         if (s.placement) colocacoes.push(s.placement);
     });
 
-    // Mais recente primeiro
     torneios.sort((a, b) => b.startAt - a.startAt);
     const colocacoesOrdenadas = torneios
         .filter(t => t.placement && t.placement !== '?')
@@ -120,6 +117,7 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
 
     return {
         gamerTag,
+        playerPrefix: prefix || '',
         totalWins,
         totalLosses,
         winrateAllTime: totalPartidas > 0 ? Math.round((totalWins / totalPartidas) * 100) : 0,
@@ -134,7 +132,7 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag) {
 }
 
 // ==================== BUSCA AO VIVO ====================
-async function _buscarPlayerAoVivo(playerId, gamerTag) {
+async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     const query1 = `query PlayerHistory($id: ID!) {
         player(id: $id) {
             user {
@@ -167,8 +165,6 @@ async function _buscarPlayerAoVivo(playerId, gamerTag) {
     const json1 = await callStartGG(query1, { id: playerId });
     const standings = json1.data?.player?.recentStandings || [];
     const images = json1.data?.player?.user?.images || [];
-    // A API retorna o type como string ("profile"/"banner"); normaliza pra minúsculo
-    // caso algum torneio/usuário venha com variação de caixa.
     const avatarUrl = images.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
     const bannerUrl = images.find(img => (img.type || '').toLowerCase() === 'banner')?.url || null;
 
@@ -180,27 +176,26 @@ async function _buscarPlayerAoVivo(playerId, gamerTag) {
         setsPorEvento[eventId] = resultado;
     }
 
-    const dados = processarDadosPlayer(standings, setsPorEvento, gamerTag);
+    const dados = processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix);
     dados.avatarUrl = avatarUrl;
     dados.bannerUrl = bannerUrl;
     return dados;
 }
 
 // ==================== FUNÇÃO PRINCIPAL ====================
-async function obterDadosPlayer(playerId, gamerTag, forceRefresh = false) {
-    // Se não for forçado, tenta o cache do localStorage primeiro
+async function obterDadosPlayer(playerId, gamerTag, forceRefresh = false, prefix = '') {
     if (!forceRefresh) {
         const cacheData = _lerPerfilCache(playerId);
         if (cacheData) {
+            if (prefix && !cacheData.playerPrefix) {
+                cacheData.playerPrefix = prefix;
+            }
             return { dados: cacheData, fonte: 'cache' };
         }
     }
-    // Busca ao vivo
-    const dados = await _buscarPlayerAoVivo(playerId, gamerTag);
-    // Salva no cache local
+    const dados = await _buscarPlayerAoVivo(playerId, gamerTag, prefix);
     _salvarPerfilCache(playerId, dados);
-    // Salva também na lista de players conhecidos (para a busca)
-    _salvarPlayerLocal(playerId, gamerTag);
+    _salvarPlayerLocal(playerId, gamerTag, prefix);
     return { dados, fonte: 'live' };
 }
 
@@ -209,15 +204,17 @@ let _listaPlayersConhecidos = null;
 async function carregarPlayersConhecidos() {
     if (_listaPlayersConhecidos) return _listaPlayersConhecidos;
 
-    // Retorna apenas os players salvos localmente (dos inscritos)
     const locais = _carregarPlayersLocal();
-    // Remove duplicatas (caso haja) usando Map
     const mapa = new Map();
     locais.forEach(p => {
-        // Garantir que o playerId seja string para evitar duplicação
         const id = String(p.playerId);
         if (!mapa.has(id)) {
-            mapa.set(id, { playerId: id, gamerTag: p.gamerTag, placement: null });
+            mapa.set(id, { 
+                playerId: id, 
+                gamerTag: p.gamerTag, 
+                prefix: p.prefix || '',
+                placement: null 
+            });
         }
     });
     _listaPlayersConhecidos = Array.from(mapa.values());
