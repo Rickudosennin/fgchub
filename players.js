@@ -137,7 +137,12 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
         player(id: $id) {
             user {
                 id
+                slug
                 name
+                authorizations {
+                    type
+                    externalUsername
+                }
                 images {
                     id
                     type
@@ -168,9 +173,15 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     const user = json1.data?.player?.user;
     const standings = json1.data?.player?.recentStandings || [];
     const images = user?.images || [];
+    const authorizations = user?.authorizations || [];
     const avatarUrl = images.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
     const bannerUrl = images.find(img => (img.type || '').toLowerCase() === 'banner')?.url || null;
     const realName = user?.name || null;
+    const userSlug = user?.slug || null;
+
+    const twitchAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITCH');
+    const twitterAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITTER' || (a.type || '').toUpperCase() === 'X');
+    const discordAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'DISCORD');
 
     const setsPorEvento = {};
     for (const standing of standings) {
@@ -184,6 +195,12 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     dados.avatarUrl = avatarUrl;
     dados.bannerUrl = bannerUrl;
     dados.realName = realName;
+    dados.userSlug = userSlug;
+    dados.social = {
+        twitch: twitchAuth ? twitchAuth.externalUsername : null,
+        twitter: twitterAuth ? twitterAuth.externalUsername : null,
+        discord: discordAuth ? discordAuth.externalUsername : null
+    };
     return dados;
 }
 
