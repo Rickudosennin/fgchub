@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perfil do Player | FGC HUB</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="buscar-style.css">
 </head>
-<body class="p-4 md:p-10">
+<body class="p-4 md:p-10 bg-slate-950 text-slate-100 overflow-x-hidden">
 
-    <div class="max-w-5xl mx-auto">
-        <a href="buscar.html" class="text-slate-400 hover:text-red-500 text-sm mb-6 inline-block">&larr; Voltar para a busca</a>
+    <div class="max-w-5xl mx-auto space-y-6 w-full min-w-0">
+        <a href="buscar.html" class="text-slate-400 hover:text-red-500 text-sm mb-2 inline-block transition">&larr; Voltar para a busca</a>
 
-        <div id="perfil_conteudo">
+        <div id="perfil_conteudo" class="w-full min-w-0">
             <div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando perfil...</p></div>
         </div>
     </div>
@@ -41,100 +43,232 @@
                 return 'dot-other';
             }
 
-            function formatDate(timestamp) {
-                if (!timestamp) return '—';
-                const d = new Date(timestamp * 1000);
-                return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+            function getMedalEmoji(placement) {
+                if (placement === 1) return '🥇';
+                if (placement === 2) return '🥈';
+                if (placement === 3) return '🥉';
+                return `${placement}º`;
             }
 
             function montarHtmlPerfil(dados, fonte) {
                 const {
-                    gamerTag, totalWins, totalLosses, winrateAllTime, winrateLast6Months,
-                    wins6m, losses6m, recentForm, highlights, tournaments, avatarUrl, bannerUrl, playerPrefix
+                    gamerTag, totalWins, totalLosses, winrateAllTime,
+                    recentForm, highlights, tournaments, avatarUrl, bannerUrl, playerPrefix,
+                    realName
                 } = dados;
 
                 const wrClass = winrateAllTime >= 60 ? 'text-green-500' : (winrateAllTime >= 40 ? 'text-yellow-500' : 'text-red-500');
-
-                // Define o display name com prefixo se disponível
                 const displayName = playerPrefix ? `${playerPrefix} | ${gamerTag}` : gamerTag;
-
-                const eventsHtml = tournaments.slice(0, 15).map(t => `
-                    <div class="event-row">
-                        <span class="event-name">${t.name}</span>
-                        <span class="event-placement ${t.winrate >= 60 ? 'text-green-500' : (t.winrate >= 40 ? 'text-yellow-500' : 'text-red-500')}">
-                            ${t.placement}º / ${t.attendees}
-                        </span>
-                        <span class="event-record">${t.wins}W - ${t.losses}L (${t.winrate}%)</span>
-                        <span class="event-date">${t.date}</span>
-                    </div>
-                `).join('') || '<div class="text-slate-500 text-sm">Nenhum evento encontrado.</div>';
-
                 const bannerStyle = bannerUrl ? `style="background-image:url('${bannerUrl}')"` : '';
+                const totalSets = totalWins + totalLosses;
 
                 return `
-                    <div class="player-profile ${(avatarUrl || bannerUrl) ? 'has-banner' : ''}">
-                        <!-- BANNER + AVATAR -->
-                        <div class="profile-banner" ${bannerStyle}>
-                            <div class="profile-banner-overlay"></div>
-                            ${avatarUrl ? `<img src="${avatarUrl}" class="profile-avatar" alt="${gamerTag}">` : ''}
-                        </div>
-
-                        <!-- HEADER -->
-                        <div class="profile-header">
-                            <h1 class="profile-gamertag">${displayName}</h1>
-                            <div class="winrate-badge ${wrClass}">${winrateAllTime}%</div>
-                            <div class="record-badge">${totalWins}W - ${totalLosses}L</div>
-                            <span class="text-xs text-slate-500 ml-auto">${fonte === 'cache' ? '⚡ em cache' : '🔴 ao vivo'}</span>
-                            <button onclick="atualizarDados()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition">
-                                <i class="fa-solid fa-rotate"></i> Atualizar dados
-                            </button>
-                        </div>
-
-                        <!-- RECENT FORM (bolinhas) -->
-                        <div class="recent-form">
-                            <h3>RECENT FORM</h3>
-                            <div class="form-dots">
-                                ${recentForm.map(r => `
-                                    <div class="form-entry">
-                                        ${r.icon ? `<img src="${r.icon}" class="form-icon" alt="">` : '<div class="form-icon form-icon-empty"></div>'}
-                                        <span class="form-dot ${getDotClass(r.placement)}">${r.placement}</span>
+                    <div class="space-y-6 w-full min-w-0">
+                        <!-- BANNER DO PLAYER -->
+                        <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-xl w-full">
+                            <div class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
+                                <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+                            </div>
+                            
+                            <div class="p-6 -mt-16 relative flex flex-col md:flex-row items-center md:items-end justify-between gap-4">
+                                <div class="flex flex-col md:flex-row items-center md:items-end gap-4 text-center md:text-left min-w-0 w-full">
+                                    <div class="w-24 h-24 md:w-28 md:h-28 rounded-xl border-4 border-slate-900 bg-slate-800 overflow-hidden shadow-2xl flex-shrink-0">
+                                        ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover" alt="${gamerTag}">` : `<div class="w-full h-full flex items-center justify-center text-3xl font-bold text-slate-600">${gamerTag.charAt(0)}</div>`}
                                     </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <!-- HIGHLIGHTS -->
-                        <div class="highlights">
-                            <h3>HIGHLIGHTS</h3>
-                            ${highlights.length === 0 ? '<div class="text-slate-500 text-sm">Nenhum destaque encontrado.</div>' : ''}
-                            ${highlights.map(h => `
-                                <div class="highlight-item">
-                                    <span class="placement">${h.placement}</span>
-                                    <span class="event">${h.eventName}</span>
-                                    <span class="date">${h.date}</span>
+                                    <div class="space-y-1 min-w-0 w-full">
+                                        <h1 class="text-2xl md:text-3xl font-black tracking-wide text-white flex items-center justify-center md:justify-start gap-2 break-all">
+                                            <span>${displayName}</span>
+                                        </h1>
+                                        ${realName ? `<p class="text-sm text-slate-400 font-medium truncate">${realName}</p>` : ''}
+                                        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 text-xs font-semibold pt-2 text-slate-300">
+                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700">TORNEIOS <strong class="text-white">${tournaments.length}</strong></span>
+                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700">WIN RATE <strong class="${wrClass}">${winrateAllTime}%</strong></span>
+                                        </div>
+                                    </div>
                                 </div>
-                            `).join('')}
+                                
+                                <div class="flex items-center gap-2 flex-shrink-0">
+                                    <span class="text-xs text-slate-500">${fonte === 'cache' ? '⚡ em cache' : '🔴 ao vivo'}</span>
+                                    <button onclick="atualizarDados()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-rotate"></i> Atualizar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- ABAS -->
-                        <div class="profile-tabs">
-                            <div class="tab-header">
-                                <span class="tab-btn active" data-tab="events">EVENTS</span>
-                                <span class="tab-btn" data-tab="versus">VERSUS</span>
-                                <span class="tab-btn" data-tab="vods">VODS</span>
+                        <!-- 4 STAT CARDS (DADOS START.GG) -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
+                                <div class="text-2xl font-black text-white">${totalWins} W</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vitórias</div>
                             </div>
-                            <div class="tab-content" id="tab-events">
-                                ${eventsHtml}
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
+                                <div class="text-2xl font-black text-white">${totalLosses} L</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Derrotas</div>
                             </div>
-                            <div class="tab-content" id="tab-versus" style="display:none;">
-                                <div class="text-slate-500 text-sm">Em breve: confrontos diretos.</div>
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
+                                <div class="text-2xl font-black ${wrClass}">${winrateAllTime}%</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Win Rate</div>
                             </div>
-                            <div class="tab-content" id="tab-vods" style="display:none;">
-                                <div class="text-slate-500 text-sm">Em breve: VODs.</div>
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
+                                <div class="text-2xl font-black text-white">${tournaments.length}</div>
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Torneios</div>
                             </div>
+                        </div>
+
+                        <!-- RECENT FORM -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Recent Form</h3>
+                            <div class="flex items-center gap-3 overflow-x-auto pb-2 w-full">
+                                ${recentForm.length === 0 ? '<span class="text-slate-500 text-sm">Sem dados recentes.</span>' : ''}
+                                ${recentForm.map(r => {
+                                    const eventImg = r.image || r.eventImage || r.tournamentImage || r.icon || '';
+                                    return `
+                                        <div class="flex flex-col items-center gap-2 flex-shrink-0">
+                                            <div class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center shadow-md">
+                                                ${eventImg ? `<img src="${eventImg}" alt="${r.eventName || ''}" class="w-full h-full object-cover">` : `<i class="fa-solid fa-trophy text-slate-500 text-xs"></i>`}
+                                            </div>
+                                            <span class="form-dot ${getDotClass(r.placement)}">${r.placement}</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <!-- PERFORMANCE -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Performance</h3>
+                            <div class="grid grid-cols-3 gap-4 pt-2 border-t border-slate-800 text-center">
+                                <div>
+                                    <div class="text-xs text-slate-400 mb-1">Total de Sets</div>
+                                    <div class="text-xl font-bold text-white">${totalSets}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-slate-400 mb-1">Win Rate</div>
+                                    <div class="text-xl font-bold ${wrClass}">${winrateAllTime}%</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-slate-400 mb-1">Torneios</div>
+                                    <div class="text-xl font-bold text-white">${tournaments.length}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ÚLTIMOS RESULTADOS -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Últimos Resultados</h3>
+                            <div class="divide-y divide-slate-800">
+                                ${highlights.length === 0 ? '<div class="text-slate-500 text-sm py-2">Nenhum resultado recente encontrado.</div>' : ''}
+                                ${highlights.map(h => {
+                                    const placementNum = parseInt(h.placement) || 1;
+                                    return `
+                                        <div class="py-3 flex items-center justify-between text-sm gap-2 min-w-0">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <span class="text-lg flex-shrink-0">${getMedalEmoji(placementNum)}</span>
+                                                <span class="font-semibold text-slate-200 truncate">${h.eventName}</span>
+                                            </div>
+                                            <span class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded font-mono flex-shrink-0">${h.placement.split('/')[1] || '?'} participantes</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <!-- EVOLUÇÃO (GRÁFICO COM RESULTADOS REAIS) -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Evolução de Colocação</h3>
+                            <div class="h-48 relative w-full pt-2 min-w-0">
+                                <canvas id="chartEvolucao"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- HEAD TO HEAD (VAZIO) -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Head to Head</h3>
+                            <div class="text-slate-500 text-sm py-6 text-center border border-dashed border-slate-800 rounded-lg">
+                                Nenhum confronto direto registrado via Start.gg.
+                            </div>
+                        </div>
+
+                        <!-- HISTÓRICO COMPLETO -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Histórico Completo</h3>
+                            <div class="divide-y divide-slate-800">
+                                ${tournaments.slice(0, 15).map(t => `
+                                    <div class="py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-sm w-full min-w-0">
+                                        <div class="font-medium text-slate-200 min-w-0 truncate">${t.name} <span class="text-xs text-slate-500">(${t.eventName})</span></div>
+                                        <div class="flex items-center gap-2 sm:gap-4 text-xs flex-wrap flex-shrink-0">
+                                            <span class="font-bold ${t.winrate >= 60 ? 'text-green-500' : (t.winrate >= 40 ? 'text-yellow-500' : 'text-red-500')}">${t.placement}º / ${t.attendees}</span>
+                                            <span class="text-slate-400 font-mono">${t.wins}W - ${t.losses}L (${t.winrate}%)</span>
+                                            <span class="text-slate-500">${t.date}</span>
+                                        </div>
+                                    </div>
+                                `).join('') || '<div class="text-slate-500 text-sm py-2">Nenhum evento registrado.</div>'}
+                            </div>
+                        </div>
+
+                        <!-- REDES SOCIAIS & LINKS EXTERNOS -->
+                        <div class="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-slate-800 w-full">
+                            <a href="https://start.gg/user/${playerId}" target="_blank" rel="noopener noreferrer" class="bg-slate-900 hover:bg-red-600 text-slate-300 hover:text-white border border-slate-800 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition">
+                                [ START.GG ]
+                            </a>
+                            <a href="#" target="_blank" rel="noopener noreferrer" class="bg-slate-900 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-800 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition">
+                                [ DISCORD ]
+                            </a>
+                            <a href="#" target="_blank" rel="noopener noreferrer" class="bg-slate-900 hover:bg-purple-600 text-slate-300 hover:text-white border border-slate-800 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition">
+                                [ TWITCH ]
+                            </a>
+                            <a href="#" target="_blank" rel="noopener noreferrer" class="bg-slate-900 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-800 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition">
+                                [ X ]
+                            </a>
                         </div>
                     </div>
                 `;
+            }
+
+            function renderizarGraficoEvolucao(tournaments) {
+                const canvas = document.getElementById('chartEvolucao');
+                if (!canvas || !tournaments || tournaments.length === 0) return;
+
+                const dadosOrdenados = [...tournaments].reverse();
+                const labels = dadosOrdenados.map(t => t.name.length > 15 ? t.name.substring(0, 15) + '...' : t.name);
+                const placements = dadosOrdenados.map(t => parseInt(t.placement) || 1);
+
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Colocação (1º no topo)',
+                            data: placements,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: '#ef4444',
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                reverse: true,
+                                beginAtZero: false,
+                                ticks: { color: '#94a3b8', precision: 0 },
+                                grid: { color: '#1e293b' }
+                            },
+                            x: {
+                                ticks: { color: '#94a3b8' },
+                                grid: { color: '#1e293b' }
+                            }
+                        },
+                        plugins: {
+                            legend: { labels: { color: '#cbd5e1' } }
+                        }
+                    }
+                });
             }
 
             async function carregarPerfil(forceRefresh = false) {
@@ -145,18 +279,8 @@
                 try {
                     conteudo.innerHTML = '<div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando perfil...</p></div>';
                     const { dados, fonte } = await obterDadosPlayer(playerId, gamerTag, forceRefresh, prefix);
-                    conteudo.innerHTML = '';
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
-
-                    document.querySelectorAll('.tab-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
-                            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                            this.classList.add('active');
-                            const target = this.dataset.tab;
-                            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-                            document.getElementById('tab-' + target).style.display = 'block';
-                        });
-                    });
+                    renderizarGraficoEvolucao(dados.tournaments || []);
                 } catch (e) {
                     console.error(e);
                     conteudo.innerHTML = '<div class="history-empty">❌ Erro ao carregar perfil do player.</div>';
