@@ -58,6 +58,7 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
     let wins6m = 0, losses6m = 0;
     const torneios = [];
     const colocacoes = [];
+    const h2h = {};
 
     standings.forEach(s => {
         const eventId = s.container?.id;
@@ -66,6 +67,14 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
 
         totalWins += resultado.wins;
         totalLosses += resultado.losses;
+
+        (resultado.sets || []).forEach(set => {
+            if (!set.opponentId) return;
+            const key = String(set.opponentId);
+            if (!h2h[key]) h2h[key] = { opponentId: set.opponentId, opponentTag: set.opponentTag || 'Desconhecido', wins: 0, losses: 0 };
+            if (set.venceu) h2h[key].wins++; else h2h[key].losses++;
+            if (set.opponentTag) h2h[key].opponentTag = set.opponentTag;
+        });
 
         const isRecent = startAt && (startAt * 1000) > seisMesesAtras;
         if (isRecent) {
@@ -98,6 +107,15 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
     });
 
     torneios.sort((a, b) => b.startAt - a.startAt);
+
+    const headToHead = Object.values(h2h)
+        .map(r => {
+            const total = r.wins + r.losses;
+            return { ...r, total, winrate: total > 0 ? Math.round((r.wins / total) * 100) : 0 };
+        })
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+
     const colocacoesOrdenadas = torneios
         .filter(t => t.placement && t.placement !== '?')
         .map(t => ({ placement: t.placement, icon: t.icon }));
@@ -126,6 +144,7 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
         losses6m,
         recentForm: colocacoesOrdenadas.slice(0, 10),
         highlights,
+        headToHead,
         tournaments: torneios,
         updatedAt: new Date().toISOString()
     };
