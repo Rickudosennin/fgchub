@@ -61,6 +61,7 @@ function extrairSlugTorneio(url) { if (!url) return null; const match = url.matc
 // ==================== LIGAS MONITORADAS ====================
 const LIGAS_MONITORADAS = [
     { slug: 'kombat-ranking-mk1', label: 'Kombat Ranking MK1', rankingUrl: 'https://www.start.gg/league/kombat-ranking-mk1/standings' },
+    { slug: 'cipher-x-tournament-1', label: 'Cipher-X Tournament MK1', rankingUrl: 'https://www.start.gg/league/cipher-x-tournament-1/standings' },
     { slug: 'arena-outworld-edi-o-6-2', label: 'Arena Outworld Edição 6', rankingUrl: 'https://www.start.gg/league/arena-outworld-edi-o-6-2/standings' },
     { slug: 'ranking-brasil-tekken-8-2026', label: 'Ranking Brasil Tekken 8 2026', rankingUrl: 'https://www.start.gg/league/ranking-brasil-tekken-8-2026/standings' },
     { slug: 'kampeonato-brasileiro-de-mortal-kombat-1-temporada-2', label: 'Kampeonato Brasileiro MK1 - T2', rankingUrl: 'https://www.start.gg/league/kampeonato-brasileiro-de-mortal-kombat-1-temporada-2/standings' },
