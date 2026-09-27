@@ -1,53 +1,66 @@
 // ==================== CONFIG ====================
-const GITHUB_ISSUES_TOKEN = ''; // Deixe vazio
 const CACHE_MAX_IDADE_HORAS = 24;
 
-// ==================== LISTA LOCAL DE PLAYERS (localStorage) ====================
-const LOCAL_PLAYERS_KEY = 'fgchub_local_players';
-const PROFILE_CACHE_PREFIX = 'fgchub_profile_';
+// ==================== FIREBASE ====================
+// Requer que firebase-config.js (com o firebase.initializeApp(...)) seja
+// carregado ANTES deste arquivo, junto com os SDKs firebase-app-compat.js
+// e firebase-firestore-compat.js. Veja o arquivo firebase-config.js.
+const _db = firebase.firestore();
+const _playersCollection = _db.collection('players');       // cache de perfis
+const _knownPlayersCollection = _db.collection('knownPlayers'); // lista p/ busca
 
-function _salvarPlayerLocal(playerId, gamerTag, prefix = '') {
+// ==================== CACHE DE PERFIL (Firestore, compartilhado) ====================
+async function _salvarPerfilCache(playerId, dados) {
     try {
-        const lista = JSON.parse(localStorage.getItem(LOCAL_PLAYERS_KEY) || '[]');
-        if (!lista.some(p => p.playerId === playerId)) {
-            lista.push({ playerId, gamerTag, prefix });
-            localStorage.setItem(LOCAL_PLAYERS_KEY, JSON.stringify(lista));
-            const contador = document.getElementById('contador_salvos');
-            if (contador) contador.textContent = lista.length;
-        }
-    } catch (e) {}
-}
-
-function _carregarPlayersLocal() {
-    try {
-        return JSON.parse(localStorage.getItem(LOCAL_PLAYERS_KEY) || '[]');
-    } catch (e) { return []; }
-}
-
-// ==================== CACHE DE PERFIL NO LOCALSTORAGE ====================
-function _salvarPerfilCache(playerId, dados) {
-    try {
-        const cacheKey = PROFILE_CACHE_PREFIX + playerId;
-        const cacheData = {
+        await _playersCollection.doc(String(playerId)).set({
             dados: dados,
             timestamp: Date.now()
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    } catch (e) {}
+        });
+    } catch (e) {
+        console.error('Erro ao salvar cache no Firestore:', e);
+    }
 }
 
-function _lerPerfilCache(playerId) {
+async function _lerPerfilCache(playerId) {
     try {
-        const cacheKey = PROFILE_CACHE_PREFIX + playerId;
-        const raw = localStorage.getItem(cacheKey);
-        if (!raw) return null;
-        const cacheData = JSON.parse(raw);
+        const doc = await _playersCollection.doc(String(playerId)).get();
+        if (!doc.exists) return null;
+        const cacheData = doc.data();
         const idade = (Date.now() - cacheData.timestamp) / 3600000;
         if (idade < CACHE_MAX_IDADE_HORAS) {
             return cacheData.dados;
         }
         return null;
-    } catch (e) { return null; }
+    } catch (e) {
+        console.error('Erro ao ler cache do Firestore:', e);
+        return null;
+    }
+}
+
+// ==================== LISTA DE PLAYERS CONHECIDOS (Firestore, compartilhada) ====================
+async function _salvarPlayerLocal(playerId, gamerTag, prefix = '') {
+    try {
+        await _knownPlayersCollection.doc(String(playerId)).set({
+            gamerTag,
+            prefix: prefix || ''
+        }, { merge: true });
+    } catch (e) {
+        console.error('Erro ao salvar player conhecido no Firestore:', e);
+    }
+}
+
+async function _carregarPlayersLocal() {
+    try {
+        const snap = await _knownPlayersCollection.get();
+        return snap.docs.map(d => ({
+            playerId: d.id,
+            gamerTag: d.data().gamerTag,
+            prefix: d.data().prefix || ''
+        }));
+    } catch (e) {
+        console.error('Erro ao carregar players conhecidos do Firestore:', e);
+        return [];
+    }
 }
 
 // ==================== PROCESSAMENTO ====================
@@ -82,8 +95,8 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
             losses6m += resultado.losses;
         }
 
-        const winrate = (resultado.wins + resultado.losses) > 0 
-            ? Math.round((resultado.wins / (resultado.wins + resultado.losses)) * 100) 
+        const winrate = (resultado.wins + resultado.losses) > 0
+            ? Math.round((resultado.wins / (resultado.wins + resultado.losses)) * 100)
             : 0;
 
         const tournamentImages = s.container?.tournament?.images || [];
@@ -226,7 +239,7 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
 // ==================== FUNÇÃO PRINCIPAL ====================
 async function obterDadosPlayer(playerId, gamerTag, forceRefresh = false, prefix = '') {
     if (!forceRefresh) {
-        const cacheData = _lerPerfilCache(playerId);
+        const cacheData = await _lerPerfilCache(playerId);
         if (cacheData) {
             if (prefix && !cacheData.playerPrefix) {
                 cacheData.playerPrefix = prefix;
@@ -235,30 +248,16 @@ async function obterDadosPlayer(playerId, gamerTag, forceRefresh = false, prefix
         }
     }
     const dados = await _buscarPlayerAoVivo(playerId, gamerTag, prefix);
-    _salvarPerfilCache(playerId, dados);
-    _salvarPlayerLocal(playerId, gamerTag, prefix);
+    await _salvarPerfilCache(playerId, dados);
+    await _salvarPlayerLocal(playerId, gamerTag, prefix);
     return { dados, fonte: 'live' };
 }
 
-// ==================== BUSCA DE PLAYERS (apenas localStorage) ====================
+// ==================== BUSCA DE PLAYERS (Firestore) ====================
 let _listaPlayersConhecidos = null;
 async function carregarPlayersConhecidos() {
     if (_listaPlayersConhecidos) return _listaPlayersConhecidos;
-
-    const locais = _carregarPlayersLocal();
-    const mapa = new Map();
-    locais.forEach(p => {
-        const id = String(p.playerId);
-        if (!mapa.has(id)) {
-            mapa.set(id, { 
-                playerId: id, 
-                gamerTag: p.gamerTag, 
-                prefix: p.prefix || '',
-                placement: null 
-            });
-        }
-    });
-    _listaPlayersConhecidos = Array.from(mapa.values());
+    _listaPlayersConhecidos = await _carregarPlayersLocal();
     return _listaPlayersConhecidos;
 }
 
