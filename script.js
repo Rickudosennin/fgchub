@@ -74,6 +74,14 @@ const LIGAS_MONITORADAS = [
     { slug: '2xko', label: '2XKO', rankingUrl: 'https://www.start.gg/league/2xko/standings' }
 ];
 
+// ==================== TORNEIOS LONGOS MONITORADOS ====================
+// Torneios com múltiplos eventos ao longo de meses que podem cair fora
+// do range da busca padrão (upcoming / long-running by date).
+// Buscados direto por slug e mesclados no resultado.
+const TORNEIOS_LONGOS_MONITORADOS = [
+    'rinha-online-s2s2'
+];
+
 let leagueTournamentMap = {};
 function verificarLigaDeTorneio(url) {
     const slug = extrairSlugTorneio(url);
@@ -699,6 +707,16 @@ async function pesquisar() {
         nodes{${camposNode}}
       }
     }`;
+    const queryTorneioPorSlug = `query TorneioMonitorado($slug:String, $vId:[ID]){
+      tournament(slug:$slug){${camposNode}}
+    }`;
+    async function buscarTorneiosMonitorados(vId) {
+        const fetches = TORNEIOS_LONGOS_MONITORADOS.map(slug =>
+            callStartGG(queryTorneioPorSlug, { slug, vId }).then(json => json.data?.tournament).catch(() => null)
+        );
+        const resultados = await Promise.all(fetches);
+        return resultados.filter(t => t && t.events && t.events.length > 0);
+    }
     try {
         const baseVars = { vId: [gameObj.videogameId], isOnline: typeVal === "online" };
         if (typeVal === "offline") baseVars.country = localVal;
@@ -706,12 +724,13 @@ async function pesquisar() {
         const varsUpcoming = { ...baseVars };
         const varsLongRunning = { ...baseVars, afterDate: Math.floor(Date.now()/1000) - (400*24*60*60) };
         
-        const [jsonUpcoming, jsonLongRunning] = await Promise.all([
+        const [jsonUpcoming, jsonLongRunning, nodesMonitorados] = await Promise.all([
             callStartGG(queryUpcoming, varsUpcoming),
-            callStartGG(queryLongRunning, varsLongRunning)
+            callStartGG(queryLongRunning, varsLongRunning),
+            buscarTorneiosMonitorados(baseVars.vId)
         ]);
         const nodesA = jsonUpcoming.data?.tournaments?.nodes || [];
-        const nodesB = jsonLongRunning.data?.tournaments?.nodes || [];
+        const nodesB = [...(jsonLongRunning.data?.tournaments?.nodes || []), ...nodesMonitorados];
         
         const vistos = new Set();
         let nodes = [...nodesA, ...nodesB].filter(t => {
@@ -723,8 +742,9 @@ async function pesquisar() {
         const agora = Math.floor(Date.now()/1000);
         nodes = nodes.filter(t => (t.endAt || t.startAt) >= agora);
         
+        const idsMonitorados = new Set(nodesMonitorados.map(t => t.id));
         if (typeVal === "online" && localVal === "south-america") {
-            nodes = nodes.filter(t => southAmericanCountries.includes(t.owner?.location?.country));
+            nodes = nodes.filter(t => idsMonitorados.has(t.id) || southAmericanCountries.includes(t.owner?.location?.country));
         }
         
         const proximaDataEvento = t => {
