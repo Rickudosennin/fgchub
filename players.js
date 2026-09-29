@@ -1,5 +1,5 @@
 // ==================== CONFIG ====================
-const CACHE_MAX_IDADE_HORAS = 24;
+// O cache dos perfis não expira automaticamente; é renovado pelo botão Atualizar.
 
 // ==================== FIREBASE ====================
 // Requer que firebase-config.js (com o firebase.initializeApp(...)) seja
@@ -26,11 +26,7 @@ async function _lerPerfilCache(playerId) {
         const doc = await _playersCollection.doc(String(playerId)).get();
         if (!doc.exists) return null;
         const cacheData = doc.data();
-        const idade = (Date.now() - cacheData.timestamp) / 3600000;
-        if (idade < CACHE_MAX_IDADE_HORAS) {
-            return cacheData.dados;
-        }
-        return null;
+        return cacheData.dados || null;
     } catch (e) {
         console.error('Erro ao ler cache do Firestore:', e);
         return null;
