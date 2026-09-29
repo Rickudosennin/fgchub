@@ -344,9 +344,110 @@
                 }
             };
 
-            function getSponsorLogoInfo(prefix) {
-                // Convenção: imagens/sponsors/<PREFIXO_NORMALIZADO>.webp.
-                const sponsorKey = String(prefix || '').trim()
+            const SPONSOR_LOGO_FILES = [
+                "2GAME.webp",
+                "2GAME_MDT.webp",
+                "4ALLV.webp",
+                "AD.webp",
+                "AET.webp",
+                "AL.webp",
+                "ARCADIAN.webp",
+                "BONG.webp",
+                "BRABOS.webp",
+                "BW.webp",
+                "CDL.webp",
+                "CHR.webp",
+                "CNTR.webp",
+                "COUNTER.webp",
+                "CPS.webp",
+                "DASH.webp",
+                "DK.IMP.webp",
+                "DK.webp",
+                "DR.webp",
+                "DXO.webp",
+                "E1.webp",
+                "E1SPORTS.webp",
+                "EGO.webp",
+                "FESPMS.webp",
+                "FLECHINHA.webp",
+                "FLORIPA.webp",
+                "FORCE.webp",
+                "FSH.webp",
+                "FSN.webp",
+                "FT.webp",
+                "FURIA.webp",
+                "GF.webp",
+                "HDG.webp",
+                "HIDEOUT.webp",
+                "IMP.webp",
+                "IMPERIAL.webp",
+                "KK.webp",
+                "KWH.webp",
+                "KZ.webp",
+                "LF.webp",
+                "LGD.webp",
+                "LMS.webp",
+                "LOS BRABOS.webp",
+                "LUA.webp",
+                "MDTUPPER.webp",
+                "MRK.webp",
+                "NEXUS GAMING.webp",
+                "NEXUS.webp",
+                "NM.webp",
+                "ONS.webp",
+                "ONX.webp",
+                "PFW.webp",
+                "PHT.webp",
+                "PINX.webp",
+                "PLG.webp",
+                "PRESSB.webp",
+                "PRORD.webp",
+                "RCS.webp",
+                "RENEGADOS.webp",
+                "RIZE.webp",
+                "RNG.webp",
+                "ROT.webp",
+                "RVL.webp",
+                "SA.webp",
+                "SGP.webp",
+                "SHODOWN.webp",
+                "SILVAGAMES REV.webp",
+                "SMASHPE.webp",
+                "SMASHRS.webp",
+                "SMK.webp",
+                "SOL.webp",
+                "SPB.webp",
+                "SPDQ.webp",
+                "SUN.webp",
+                "TAIPAN.webp",
+                "TDH.webp",
+                "TESA.webp",
+                "TLS.webp",
+                "TRO.webp",
+                "TRT.webp",
+                "TSD.webp",
+                "TWS.webp",
+                "UA.webp",
+                "UPP.webp",
+                "UPPER.webp",
+                "VC.webp",
+                "VENON FLOW.webp",
+                "VENON.webp",
+                "VFC.webp",
+                "VIPERS.webp",
+                "VOID.webp",
+                "Vitimas FC.webp",
+                "Vítimas FC.webp",
+                "WASF.webp",
+                "ZENKO.webp",
+                "ZF.webp",
+                "ZK.webp",
+                "ZS FIGHTERS.webp",
+                "ZSF.webp"
+            ];
+
+            function normalizarSponsorKey(value) {
+                return String(value || '').trim()
                     .normalize('NFD')
                     .replace(/[\u0300-\u036f]/g, '')
                     .toUpperCase()
@@ -354,10 +455,17 @@
                     .replace(/[^A-Z0-9_-]/g, '_')
                     .replace(/_+/g, '_')
                     .replace(/^_+|_+$/g, '');
+            }
+
+            function getSponsorLogoInfo(prefix) {
+                const sponsorKey = normalizarSponsorKey(prefix);
                 if (!sponsorKey) return null;
+                const mappedFile = SPONSOR_LOGO_FILES.find(file =>
+                    normalizarSponsorKey(file.slice(0, file.lastIndexOf('.'))) === sponsorKey
+                );
                 return {
                     label: sponsorKey,
-                    file: `imagens/sponsors/${sponsorKey}.webp`
+                    file: `imagens/sponsors/${mappedFile || `${sponsorKey}.webp`}`
                 };
             }
 
@@ -406,7 +514,7 @@
                     <div class="space-y-6 w-full min-w-0">
                         ${sponsorLogoInfo ? `
                             <div class="flex justify-center -mb-4">
-                                <img src="${sponsorLogoInfo.file}" alt="Logo ${sponsorLogoInfo.label}" class="h-20 w-48 md:h-24 md:w-56 object-contain drop-shadow-lg" decoding="async" onerror="this.parentElement.remove()">
+                                <img src="${encodeURI(sponsorLogoInfo.file)}" alt="Logo ${sponsorLogoInfo.label}" class="h-20 w-48 md:h-24 md:w-56 object-contain drop-shadow-lg" decoding="async" onerror="this.parentElement.remove()">
                             </div>
                         ` : ''}
                         <!-- BANNER DO PLAYER -->
