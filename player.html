@@ -344,6 +344,23 @@
                 }
             };
 
+            function getSponsorLogoInfo(prefix) {
+                // Convenção: imagens/sponsors/<PREFIXO_NORMALIZADO>.webp.
+                const sponsorKey = String(prefix || '').trim()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toUpperCase()
+                    .replace(/\s+/g, '_')
+                    .replace(/[^A-Z0-9_-]/g, '_')
+                    .replace(/_+/g, '_')
+                    .replace(/^_+|_+$/g, '');
+                if (!sponsorKey) return null;
+                return {
+                    label: sponsorKey,
+                    file: `imagens/sponsors/${sponsorKey}.webp`
+                };
+            }
+
             function getCharArtInfo(characterArt) {
                 if (!characterArt) return null;
                 const [gameKey, charKey] = characterArt.split(':');
@@ -373,6 +390,7 @@
                     realName, social, userSlug, characterArt
                 } = dados;
                 const charArtInfo = getCharArtInfo(characterArt);
+                const sponsorLogoInfo = getSponsorLogoInfo(playerPrefix);
 
                 const wrClass = winrateAllTime >= 60 ? 'text-green-500' : (winrateAllTime >= 40 ? 'text-yellow-500' : 'text-red-500');
                 const displayName = playerPrefix ? `${playerPrefix} | ${gamerTag}` : gamerTag;
@@ -386,6 +404,11 @@
 
                 return `
                     <div class="space-y-6 w-full min-w-0">
+                        ${sponsorLogoInfo ? `
+                            <div class="flex justify-center -mb-4">
+                                <img src="${sponsorLogoInfo.file}" alt="Logo ${sponsorLogoInfo.label}" class="h-20 w-48 md:h-24 md:w-56 object-contain drop-shadow-lg" decoding="async" onerror="this.parentElement.remove()">
+                            </div>
+                        ` : ''}
                         <!-- BANNER DO PLAYER -->
                         <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-xl w-full">
                             <div class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
