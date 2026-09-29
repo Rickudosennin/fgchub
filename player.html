@@ -36,7 +36,9 @@
             const params = new URLSearchParams(window.location.search);
             const playerId = params.get('id');
             const gamerTag = params.get('tag') || 'Player';
-            const prefix = params.get('prefix') || '';
+            const prefixParam = params.get('prefix');
+            const prefix = prefixParam || '';
+            const prefixProvided = prefixParam !== null;
             const conteudo = document.getElementById('perfil_conteudo');
 
             const GAMES_ART_MAP = {
@@ -662,7 +664,7 @@
                 }
                 try {
                     conteudo.innerHTML = '<div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando perfil...</p></div>';
-                    const { dados, fonte } = await obterDadosPlayer(playerId, gamerTag, forceRefresh, prefix);
+                    const { dados, fonte } = await obterDadosPlayer(playerId, gamerTag, forceRefresh, prefix, prefixProvided);
                     dados.characterArt = await _lerCharArt(playerId);
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     renderizarGraficoEvolucao(dados.tournaments || []);
