@@ -272,32 +272,47 @@
             }
         });
 
+        let timesRenderizados = [];
+
         function renderizarGridTimes() {
             const prefixosComPlayer = new Set(
                 listaCompleta
                     .map(p => (p.prefix || '').trim().toLowerCase())
                     .filter(Boolean)
             );
-            const timesComPlayer = TEAMS.filter(t => prefixosComPlayer.has(t.tag.trim().toLowerCase()));
-            if (timesComPlayer.length === 0) {
+            timesRenderizados = TEAMS.filter(t => prefixosComPlayer.has(t.tag.trim().toLowerCase()));
+            if (timesRenderizados.length === 0) {
                 conteudoTimes.innerHTML = '<span class="col-span-full text-slate-500 text-xs text-center py-4">Nenhum time com player cadastrado.</span>';
                 return;
             }
-            conteudoTimes.innerHTML = timesComPlayer.map(t => `
-                <button onclick="buscarPorTime('${t.tag.replace(/'/g, "\\'")}')" title="${t.tag}" class="flex items-center justify-center p-2 h-16 rounded-lg border border-slate-700 hover:border-red-500 bg-slate-800/50 transition">
+            conteudoTimes.innerHTML = timesRenderizados.map((t, idx) => `
+                <button id="time_btn_${idx}" onclick="buscarPorTime(${idx})" title="${t.tag}" class="flex items-center justify-center p-2 h-16 rounded-lg border border-slate-700 hover:border-red-500 bg-slate-800/50 transition">
                     <img src="${t.logo}" alt="${t.tag}" class="max-w-full max-h-10 object-contain">
                 </button>
             `).join('');
         }
 
-        window.buscarPorTime = function(tag) {
-            const t = tag.trim().toLowerCase();
+        window.buscarPorTime = function(idx) {
+            const time = timesRenderizados[idx];
+            if (!time) return;
+
+            document.querySelectorAll('#conteudo_times button').forEach(btn => {
+                btn.classList.remove('border-red-500', 'bg-slate-800');
+                btn.classList.add('border-slate-700', 'bg-slate-800/50');
+            });
+            const btnSelecionado = document.getElementById('time_btn_' + idx);
+            if (btnSelecionado) {
+                btnSelecionado.classList.remove('border-slate-700', 'bg-slate-800/50');
+                btnSelecionado.classList.add('border-red-500', 'bg-slate-800');
+            }
+
+            const t = time.tag.trim().toLowerCase();
             const filtrados = listaCompleta
                 .filter(p => (p.prefix || '').trim().toLowerCase() === t)
                 .sort((a, b) => a.gamerTag.localeCompare(b.gamerTag, 'pt-BR', { sensitivity: 'base' }));
             inputBusca.value = '';
             if (filtrados.length === 0) {
-                resultadosDiv.innerHTML = `<div class="text-slate-500 text-sm text-center py-8">Nenhum player com o time "${tag}" encontrado.</div>`;
+                resultadosDiv.innerHTML = `<div class="text-slate-500 text-sm text-center py-8">Nenhum player com o time "${time.tag}" encontrado.</div>`;
                 return;
             }
             renderizarLista(filtrados);
