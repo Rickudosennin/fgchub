@@ -25,6 +25,7 @@
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
     <script src="players.js"></script>
+    <script src="country-codes.js"></script>
     <script>
         (function() {
             if (window._playerLoaded) {
@@ -51,7 +52,6 @@
                         "alex": { label: "Alex", file: "imagens/sf6/full/file_Alex_0.png" },
                         "bison": { label: "M. Bison", file: "imagens/sf6/full/file_Bison_0.png" },
                         "blanka": { label: "Blanka", file: "imagens/sf6/full/file_Blanka_0.png" },
-                        "cammy": { label: "Cammy", file: "imagens/sf6/full/file_Cammy_0.webp" },
                         "chunli": { label: "Chun-Li", file: "imagens/sf6/full/file_ChunLi_0.png" },
                         "deejay": { label: "Dee Jay", file: "imagens/sf6/full/file_DeeJay_0.png" },
                         "dhalsim": { label: "Dhalsim", file: "imagens/sf6/full/file_Dhalsim_0.png" },
@@ -123,19 +123,19 @@
                     logo: "imagens/logos/logotkk8.png",
                     chars: {
                         "ali": { label: "Alisa", file: "imagens/tekken8/full/TK8_ch_ali_icon_new_webp_0.webp" },
-                        "ann": { label: "Anna", file: "imagens/tekken8/full/TK8_ch_ann_icon_new_webp_0.webp" },
+                        "ann": { label: "Ann", file: "imagens/tekken8/full/TK8_ch_ann_icon_new_webp_0.webp" },
                         "arm": { label: "Armor King", file: "imagens/tekken8/full/TK8_ch_arm_icon_new_webp_0.webp" },
-                        "asu": { label: "Asuka", file: "imagens/tekken8/full/TK8_ch_asu_icon_new_webp_0.webp" },
-                        "azu": { label: "Azucena", file: "imagens/tekken8/full/TK8_ch_azu_icon_new_webp_0.webp" },
+                        "asu": { label: "Asu", file: "imagens/tekken8/full/TK8_ch_asu_icon_new_webp_0.webp" },
+                        "azu": { label: "Azu", file: "imagens/tekken8/full/TK8_ch_azu_icon_new_webp_0.webp" },
                         "bob": { label: "Bob", file: "imagens/tekken8/full/TK8_ch_bob_icon_new_webp_0.webp" },
-                        "bry": { label: "Bryan", file: "imagens/tekken8/full/TK8_ch_bry_icon_new_webp_0.webp" },
-                        "cla": { label: "Claudio", file: "imagens/tekken8/full/TK8_ch_cla_icon_new_webp_0.webp" },
-                        "cli": { label: "Clive", file: "imagens/tekken8/full/TK8_ch_cli_icon_new_webp_0.webp" },
-                        "dra": { label: "Dragunov", file: "imagens/tekken8/full/TK8_ch_dra_icon_new_webp_0.webp" },
+                        "bry": { label: "Bry", file: "imagens/tekken8/full/TK8_ch_bry_icon_new_webp_0.webp" },
+                        "cla": { label: "Clive", file: "imagens/tekken8/full/TK8_ch_cla_icon_new_webp_0.webp" },
+                        "cli": { label: "Claudio", file: "imagens/tekken8/full/TK8_ch_cli_icon_new_webp_0.webp" },
+                        "dra": { label: "Dra", file: "imagens/tekken8/full/TK8_ch_dra_icon_new_webp_0.webp" },
                         "dvj": { label: "Devil Jin", file: "imagens/tekken8/full/TK8_ch_dvj_icon_new_webp_0.webp" },
-                        "edd": { label: "Eddy", file: "imagens/tekken8/full/TK8_ch_edd_icon_new_webp_0.webp" },
+                        "edd": { label: "Edd", file: "imagens/tekken8/full/TK8_ch_edd_icon_new_webp_0.webp" },
                         "fak": { label: "Fahkumram", file: "imagens/tekken8/full/TK8_ch_fak_icon_new_webp_0.webp" },
-                        "fen": { label: "Feng", file: "imagens/tekken8/full/TK8_ch_fen_icon_new_webp_0.webp" },
+                        "fen": { label: "Fen", file: "imagens/tekken8/full/TK8_ch_fen_icon_new_webp_0.webp" },
                         "hei": { label: "Heihachi", file: "imagens/tekken8/full/TK8_ch_hei_icon_new_webp_0.webp" },
                         "hwo": { label: "Hwoarang", file: "imagens/tekken8/full/TK8_ch_hwo_icon_new_webp_0.webp" },
                         "jac": { label: "Jack-8", file: "imagens/tekken8/full/TK8_ch_jac_icon_new_webp_0.webp" },
@@ -348,7 +348,6 @@
             const SPONSOR_LOGO_FILES = [
                 "2GAME.webp",
                 "2GAME_MDT.webp",
-                "2G.webp",
                 "4ALLV.webp",
                 "AD.webp",
                 "AET.webp",
@@ -479,6 +478,13 @@
                 return game.chars[charKey] || null;
             }
 
+            function getCountryFlagHtml(countryName, countryCode) {
+                const iso2 = (window.fgcCountryIso2 && window.fgcCountryIso2(countryCode)) ||
+                    (window.fgcCountryIso2 && window.fgcCountryIso2(countryName));
+                if (!iso2) return '';
+                return `<img src="https://flagcdn.com/w80/${iso2.toLowerCase()}.png" alt="Bandeira do país ${iso2}" title="País: ${iso2}" class="w-10 h-7 md:w-12 md:h-8 object-cover rounded border border-white/40 shadow-lg bg-slate-900/80" loading="lazy" decoding="async" onerror="this.remove()">`;
+            }
+
             function getDotClass(placement) {
                 if (placement === 1) return 'dot-1st';
                 if (placement <= 3) return 'dot-top3';
@@ -497,10 +503,11 @@
                 const {
                     gamerTag, totalWins, totalLosses, winrateAllTime,
                     recentForm, highlights, headToHead, tournaments, avatarUrl, bannerUrl, playerPrefix,
-                    realName, social, userSlug, characterArt
+                    realName, social, userSlug, characterArt, countryName, countryCode
                 } = dados;
                 const charArtInfo = getCharArtInfo(characterArt);
                 const sponsorLogoInfo = getSponsorLogoInfo(playerPrefix);
+                const countryFlagHtml = getCountryFlagHtml(countryName, countryCode);
 
                 const wrClass = winrateAllTime >= 60 ? 'text-green-500' : (winrateAllTime >= 40 ? 'text-yellow-500' : 'text-red-500');
                 const displayName = playerPrefix ? `${playerPrefix} | ${gamerTag}` : gamerTag;
@@ -521,8 +528,9 @@
                         ` : ''}
                         <!-- BANNER DO PLAYER -->
                         <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-xl w-full">
-                            <div class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
+                            <div id="player-banner" class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
                                 <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+                                <div id="player-country-flag-container" class="absolute top-3 left-3 z-20">${countryFlagHtml}</div>
                                 ${charArtInfo ? `<img src="${charArtInfo.file}" alt="${charArtInfo.label}" class="absolute right-2 md:right-8 bottom-0 h-full object-contain object-bottom pointer-events-none select-none">` : ''}
                             </div>
                             
@@ -790,6 +798,37 @@
                 });
             }
 
+            async function atualizarPaisCacheAntigo(playerId, dados) {
+                try {
+                    const query = `query PlayerCountry($id: ID!) {
+                        player(id: $id) {
+                            user {
+                                location {
+                                    country
+                                }
+                            }
+                        }
+                    }`;
+                    const resposta = await callStartGG(query, { id: playerId });
+                    const jogador = resposta.data?.player;
+                    if (!jogador) return;
+
+                    const countryName = typeof jogador.user?.location?.country === 'string' && jogador.user.location.country.trim()
+                        ? jogador.user.location.country.trim()
+                        : null;
+                    dados.countryName = countryName;
+                    dados.countryChecked = true;
+                    await _salvarPaisPerfilCache(playerId, countryName, true);
+
+                    const flagContainer = document.getElementById('player-country-flag-container');
+                    if (flagContainer) {
+                        flagContainer.innerHTML = getCountryFlagHtml(countryName, null);
+                    }
+                } catch (e) {
+                    console.warn('Não foi possível consultar o país do player no Start.gg:', e);
+                }
+            }
+
             async function carregarPerfil(forceRefresh = false) {
                 if (!playerId) {
                     conteudo.innerHTML = '<div class="history-empty">Player não especificado na URL.</div>';
@@ -801,6 +840,9 @@
                     dados.characterArt = await _lerCharArt(playerId);
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     renderizarGraficoEvolucao(dados.tournaments || []);
+                    if (fonte === 'cache' && dados.countryChecked !== true && !dados.countryName && !dados.countryCode) {
+                        void atualizarPaisCacheAntigo(playerId, dados);
+                    }
                 } catch (e) {
                     console.error(e);
                     conteudo.innerHTML = '<div class="history-empty">❌ Erro ao carregar perfil do player.</div>';
