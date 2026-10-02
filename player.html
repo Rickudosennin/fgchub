@@ -25,6 +25,7 @@
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
     <script src="players.js"></script>
+    <script src="country-codes.js"></script>
     <script>
         (function() {
             if (window._playerLoaded) {
@@ -87,6 +88,7 @@
                         "ashrah": { label: "Ashrah", file: "imagens/mk1/full/file_Ashrah_0.webp" },
                         "conan": { label: "Conan", file: "imagens/mk1/full/file_Conan_0.webp" },
                         "cyrax": { label: "Cyrax", file: "imagens/mk1/full/file_Cyrax_0.webp" },
+                        "ermac": { label: "Ermac", file: "imagens/mk1/full/file_Ermac_0.webp" },
                         "geras": { label: "Geras", file: "imagens/mk1/full/file_Geras_0.webp" },
                         "ghostface": { label: "Ghostface", file: "imagens/mk1/full/file_Ghostface_0.webp" },
                         "havik": { label: "Havik", file: "imagens/mk1/full/file_Havik_0.webp" },
@@ -479,6 +481,13 @@
                 return game.chars[charKey] || null;
             }
 
+            function getCountryFlagHtml(countryName, countryCode) {
+                const iso2 = (window.fgcCountryIso2 && window.fgcCountryIso2(countryCode)) ||
+                    (window.fgcCountryIso2 && window.fgcCountryIso2(countryName));
+                if (!iso2) return '';
+                return `<img src="https://flagcdn.com/w80/${iso2.toLowerCase()}.png" alt="Bandeira do país ${iso2}" title="País: ${iso2}" class="w-10 h-7 md:w-12 md:h-8 object-cover rounded border border-white/40 shadow-lg bg-slate-900/80" loading="lazy" decoding="async" onerror="this.remove()">`;
+            }
+
             function getDotClass(placement) {
                 if (placement === 1) return 'dot-1st';
                 if (placement <= 3) return 'dot-top3';
@@ -497,10 +506,11 @@
                 const {
                     gamerTag, totalWins, totalLosses, winrateAllTime,
                     recentForm, highlights, headToHead, tournaments, avatarUrl, bannerUrl, playerPrefix,
-                    realName, social, userSlug, characterArt
+                    realName, social, userSlug, characterArt, countryName, countryCode
                 } = dados;
                 const charArtInfo = getCharArtInfo(characterArt);
                 const sponsorLogoInfo = getSponsorLogoInfo(playerPrefix);
+                const countryFlagHtml = getCountryFlagHtml(countryName, countryCode);
 
                 const wrClass = winrateAllTime >= 60 ? 'text-green-500' : (winrateAllTime >= 40 ? 'text-yellow-500' : 'text-red-500');
                 const displayName = playerPrefix ? `${playerPrefix} | ${gamerTag}` : gamerTag;
@@ -521,8 +531,9 @@
                         ` : ''}
                         <!-- BANNER DO PLAYER -->
                         <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-xl w-full">
-                            <div class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
+                            <div id="player-banner" class="h-44 md:h-56 bg-cover bg-center relative" ${bannerStyle}>
                                 <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+                                <div id="player-country-flag-container" class="absolute top-3 left-3 z-20">${countryFlagHtml}</div>
                                 ${charArtInfo ? `<img src="${charArtInfo.file}" alt="${charArtInfo.label}" class="absolute right-2 md:right-8 bottom-0 h-full object-contain object-bottom pointer-events-none select-none">` : ''}
                             </div>
                             
@@ -598,6 +609,30 @@
                             </div>
                         </div>
 
+                        <!-- JOGOS QUE O PLAYER JOGA -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Jogos do player</h3>
+                                <span class="text-xs text-slate-500">${jogosPlayer.length} ${jogosPlayer.length === 1 ? 'jogo selecionado' : 'jogos selecionados'}</span>
+                            </div>
+                            ${jogosPlayer.length === 0 ? `
+                                <p class="text-slate-500 text-sm">Nenhum jogo adicionado. Use o botão Jogos para selecionar.</p>
+                            ` : `
+                                <div class="flex flex-wrap gap-3">
+                                    ${jogosPlayer.map(gameKey => {
+                                        const game = GAMES_ART_MAP[gameKey];
+                                        if (!game) return '';
+                                        return `
+                                            <div class="w-28 sm:w-32 min-h-20 rounded-lg border border-slate-700 bg-slate-800/60 p-2 flex flex-col items-center justify-center gap-1.5">
+                                                <img src="${game.logo}" alt="${game.label}" title="${game.label}" class="w-full h-10 object-contain" loading="lazy" decoding="async">
+                                                <span class="text-[10px] sm:text-xs text-slate-300 text-center leading-tight">${game.label}</span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `}
+                        </div>
+
                         <!-- RECENT FORM -->
                         <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
                             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Recent Form</h3>
@@ -636,31 +671,7 @@
                             </div>
                         </div>
 
-                        <!-- JOGOS QUE O PLAYER JOGA -->
-                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
-                            <div class="flex items-center justify-between gap-3">
-                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Jogos do player</h3>
-                                <span class="text-xs text-slate-500">${jogosPlayer.length} ${jogosPlayer.length === 1 ? 'jogo selecionado' : 'jogos selecionados'}</span>
-                            </div>
-                            ${jogosPlayer.length === 0 ? `
-                                <p class="text-slate-500 text-sm">Nenhum jogo adicionado. Use o botão Jogos para selecionar.</p>
-                            ` : `
-                                <div class="flex flex-wrap gap-3">
-                                    ${jogosPlayer.map(gameKey => {
-                                        const game = GAMES_ART_MAP[gameKey];
-                                        if (!game) return '';
-                                        return `
-                                            <div class="w-28 sm:w-32 min-h-20 rounded-lg border border-slate-700 bg-slate-800/60 p-2 flex flex-col items-center justify-center gap-1.5">
-                                                <img src="${game.logo}" alt="${game.label}" title="${game.label}" class="w-full h-10 object-contain" loading="lazy" decoding="async">
-                                                <span class="text-[10px] sm:text-xs text-slate-300 text-center leading-tight">${game.label}</span>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
-                            `}
-                        </div>
-
-                        <!-- RECENT FORM -->
+                        <!-- ÚLTIMOS RESULTADOS -->
                         <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
                             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Últimos Resultados</h3>
                             <div class="divide-y divide-slate-800">
@@ -766,43 +777,43 @@
                                         `).join('')}
                                     </div>
                                 </div>
-                    `).join('')}
-                </div>
-            </div>
+                            `).join('')}
+                        </div>
+                    </div>
 
-            <!-- MODAL: SELECIONAR JOGOS DO PLAYER -->
-            <div id="games_played_modal" class="fixed inset-0 z-50 hidden bg-black/70 flex items-center justify-center p-4">
-                <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-4" role="dialog" aria-modal="true" aria-label="Selecionar jogos do player">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Jogos que joga</h3>
-                            <p class="text-xs text-slate-400 mt-1">Selecione todos os jogos que fazem parte do perfil.</p>
+                    <!-- MODAL: SELECIONAR JOGOS DO PLAYER -->
+                    <div id="games_played_modal" class="fixed inset-0 z-50 hidden bg-black/70 flex items-center justify-center p-4">
+                        <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-4" role="dialog" aria-modal="true" aria-label="Selecionar jogos do player">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Jogos que joga</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Selecione todos os jogos que fazem parte do perfil.</p>
+                                </div>
+                                <button type="button" onclick="fecharSeletorJogosPlayer()" aria-label="Fechar" class="text-slate-400 hover:text-white">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <div id="games_played_grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                ${Object.entries(GAMES_ART_MAP).map(([gameKey, game]) => `
+                                    <button type="button" data-game-key="${gameKey}" aria-pressed="${jogosPlayer.includes(gameKey)}" onclick="toggleJogoPlayer('${gameKey}')" class="min-h-24 flex flex-col items-center justify-center gap-2 p-3 rounded-lg border ${jogosPlayer.includes(gameKey) ? 'border-red-500 bg-slate-800' : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'} transition">
+                                        <img src="${game.logo}" alt="${game.label}" class="w-full h-10 object-contain" loading="lazy" decoding="async">
+                                        <span class="text-[11px] sm:text-xs text-slate-300 text-center leading-tight">${game.label}</span>
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div class="flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                                <div>
+                                    <p id="games_played_count" class="text-xs text-slate-400">${jogosPlayer.length} ${jogosPlayer.length === 1 ? 'jogo selecionado' : 'jogos selecionados'}</p>
+                                    <p id="games_played_status" class="text-xs text-red-400 mt-1" role="status"></p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="fecharSeletorJogosPlayer()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg font-bold transition">Cancelar</button>
+                                    <button type="button" id="games_played_save" onclick="salvarJogosPlayer()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg font-bold transition">Salvar</button>
+                                </div>
+                            </div>
                         </div>
-                        <button type="button" onclick="fecharSeletorJogosPlayer()" aria-label="Fechar" class="text-slate-400 hover:text-white">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
                     </div>
-                    <div id="games_played_grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        ${Object.entries(GAMES_ART_MAP).map(([gameKey, game]) => `
-                            <button type="button" data-game-key="${gameKey}" aria-pressed="${jogosPlayer.includes(gameKey)}" onclick="toggleJogoPlayer('${gameKey}')" class="min-h-24 flex flex-col items-center justify-center gap-2 p-3 rounded-lg border ${jogosPlayer.includes(gameKey) ? 'border-red-500 bg-slate-800' : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'} transition">
-                                <img src="${game.logo}" alt="${game.label}" class="w-full h-10 object-contain" loading="lazy" decoding="async">
-                                <span class="text-[11px] sm:text-xs text-slate-300 text-center leading-tight">${game.label}</span>
-                            </button>
-                        `).join('')}
-                    </div>
-                    <div class="flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
-                        <div>
-                            <p id="games_played_count" class="text-xs text-slate-400">${jogosPlayer.length} ${jogosPlayer.length === 1 ? 'jogo selecionado' : 'jogos selecionados'}</p>
-                            <p id="games_played_status" class="text-xs text-red-400 mt-1" role="status"></p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button type="button" onclick="fecharSeletorJogosPlayer()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg font-bold transition">Cancelar</button>
-                            <button type="button" id="games_played_save" onclick="salvarJogosPlayer()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg font-bold transition">Salvar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            `;
+                `;
             }
 
             function renderizarGraficoEvolucao(tournaments) {
@@ -850,6 +861,37 @@
                 });
             }
 
+            async function atualizarPaisCacheAntigo(playerId, dados) {
+                try {
+                    const query = `query PlayerCountry($id: ID!) {
+                        player(id: $id) {
+                            user {
+                                location {
+                                    country
+                                }
+                            }
+                        }
+                    }`;
+                    const resposta = await callStartGG(query, { id: playerId });
+                    const jogador = resposta.data?.player;
+                    if (!jogador) return;
+
+                    const countryName = typeof jogador.user?.location?.country === 'string' && jogador.user.location.country.trim()
+                        ? jogador.user.location.country.trim()
+                        : null;
+                    dados.countryName = countryName;
+                    dados.countryChecked = true;
+                    await _salvarPaisPerfilCache(playerId, countryName, true);
+
+                    const flagContainer = document.getElementById('player-country-flag-container');
+                    if (flagContainer) {
+                        flagContainer.innerHTML = getCountryFlagHtml(countryName, null);
+                    }
+                } catch (e) {
+                    console.warn('Não foi possível consultar o país do player no Start.gg:', e);
+                }
+            }
+
             async function carregarPerfil(forceRefresh = false) {
                 if (!playerId) {
                     conteudo.innerHTML = '<div class="history-empty">Player não especificado na URL.</div>';
@@ -866,6 +908,9 @@
                     jogosPlayer = Array.isArray(savedGames) ? [...new Set(savedGames.filter(key => GAMES_ART_MAP[key]))] : [];
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     renderizarGraficoEvolucao(dados.tournaments || []);
+                    if (fonte === 'cache' && dados.countryChecked !== true && !dados.countryName && !dados.countryCode) {
+                        void atualizarPaisCacheAntigo(playerId, dados);
+                    }
                 } catch (e) {
                     console.error(e);
                     conteudo.innerHTML = '<div class="history-empty">❌ Erro ao carregar perfil do player.</div>';
