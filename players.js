@@ -403,6 +403,38 @@ async function _lerCharArt(playerId) {
     }
 }
 
+// ==================== JOGOS DO PLAYER (Firestore, campo separado) ====================
+async function _salvarGamesPlayed(playerId, gameKeys) {
+    try {
+        const playerKey = playerId == null ? '' : String(playerId).trim();
+        if (!playerKey) return false;
+        const validKeys = Array.isArray(gameKeys)
+            ? [...new Set(gameKeys.filter(key => typeof key === 'string' && key.trim()))].slice(0, 20)
+            : [];
+        await _playersCollection.doc(playerKey).set({
+            gamesPlayed: validKeys
+        }, { merge: true });
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar jogos do player:', e);
+        return false;
+    }
+}
+
+async function _lerGamesPlayed(playerId) {
+    try {
+        const playerKey = playerId == null ? '' : String(playerId).trim();
+        if (!playerKey) return [];
+        const doc = await _playersCollection.doc(playerKey).get();
+        if (!doc.exists) return [];
+        const gamesPlayed = doc.data().gamesPlayed;
+        return Array.isArray(gamesPlayed) ? gamesPlayed : [];
+    } catch (e) {
+        console.error('Erro ao ler jogos do player:', e);
+        return [];
+    }
+}
+
 // ==================== BUSCA DE PLAYERS (Firestore) ====================
 let _listaPlayersConhecidos = null;
 async function carregarPlayersConhecidos() {
