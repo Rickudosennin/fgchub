@@ -286,7 +286,7 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
                 location {
                     country
                 }
-/* [redacted sensitive line 289] */
+                authorizations {
                     type
                     externalUsername
                 }
@@ -329,15 +329,15 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
         : null;
     const standings = json1.data?.player?.recentStandings || [];
     const images = user?.images || [];
-/* [redacted sensitive line 332] */
+    const authorizations = user?.authorizations || [];
     const avatarUrl = images.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
     const bannerUrl = images.find(img => (img.type || '').toLowerCase() === 'banner')?.url || null;
     const realName = user?.name || null;
     const userSlug = user?.slug || null;
 
-/* [redacted sensitive line 338] */
-/* [redacted sensitive line 339] */
-/* [redacted sensitive line 340] */
+    const twitchAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITCH');
+    const twitterAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITTER' || (a.type || '').toUpperCase() === 'X');
+    const discordAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'DISCORD');
 
     const setsPorEvento = {};
     for (const standing of standings) {
@@ -400,34 +400,6 @@ async function _lerCharArt(playerId) {
     } catch (e) {
         console.error('Erro ao ler char art:', e);
         return null;
-    }
-}
-
-// ==================== JOGOS DO PLAYER (Firestore, campo separado) ====================
-async function _salvarGamesPlayed(playerId, gameKeys) {
-    try {
-        const validKeys = Array.isArray(gameKeys)
-            ? [...new Set(gameKeys.filter(key => typeof key === 'string' && key.trim()))].slice(0, 20)
-            : [];
-        await _playersCollection.doc(String(playerId)).set({
-            gamesPlayed: validKeys
-        }, { merge: true });
-        return true;
-    } catch (e) {
-        console.error('Erro ao salvar jogos do player:', e);
-        return false;
-    }
-}
-
-async function _lerGamesPlayed(playerId) {
-    try {
-        const doc = await _playersCollection.doc(String(playerId)).get();
-        if (!doc.exists) return [];
-        const gamesPlayed = doc.data().gamesPlayed;
-        return Array.isArray(gamesPlayed) ? gamesPlayed : [];
-    } catch (e) {
-        console.error('Erro ao ler jogos do player:', e);
-        return [];
     }
 }
 
