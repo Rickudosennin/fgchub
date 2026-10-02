@@ -33,17 +33,6 @@ async function _lerPerfilCache(playerId) {
     }
 }
 
-async function _salvarPaisPerfilCache(playerId, countryName, countryChecked = true) {
-    try {
-        await _playersCollection.doc(String(playerId)).update({
-            'dados.countryName': countryName || null,
-            'dados.countryChecked': Boolean(countryChecked)
-        });
-    } catch (e) {
-        console.error('Erro ao salvar país no cache do perfil:', e);
-    }
-}
-
 // ==================== LISTA DE PLAYERS CONHECIDOS (Firestore, compartilhada) ====================
 async function _salvarPlayerLocal(playerId, gamerTag, prefix = '') {
     try {
@@ -283,9 +272,6 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
                 id
                 slug
                 name
-                location {
-                    country
-                }
                 authorizations {
                     type
                     externalUsername
@@ -324,9 +310,6 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     const gamerTagAtual = jogador.gamerTag || gamerTag;
     const prefixAtual = typeof jogador.prefix === 'string' ? jogador.prefix.trim() : '';
     const user = jogador.user;
-    const countryName = typeof user?.location?.country === 'string' && user.location.country.trim()
-        ? user.location.country.trim()
-        : null;
     const standings = json1.data?.player?.recentStandings || [];
     const images = user?.images || [];
     const authorizations = user?.authorizations || [];
@@ -352,8 +335,6 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     dados.bannerUrl = bannerUrl;
     dados.realName = realName;
     dados.userSlug = userSlug;
-    dados.countryName = countryName;
-    dados.countryChecked = true;
     dados.social = {
         twitch: twitchAuth ? twitchAuth.externalUsername : null,
         twitter: twitterAuth ? twitterAuth.externalUsername : null,
@@ -400,6 +381,34 @@ async function _lerCharArt(playerId) {
     } catch (e) {
         console.error('Erro ao ler char art:', e);
         return null;
+    }
+}
+
+// ==================== JOGOS DO PLAYER (Firestore, campo separado) ====================
+async function _salvarGamesPlayed(playerId, gameKeys) {
+    try {
+        const validKeys = Array.isArray(gameKeys)
+            ? [...new Set(gameKeys.filter(key => typeof key === 'string' && key.trim()))].slice(0, 20)
+            : [];
+        await _playersCollection.doc(String(playerId)).set({
+            gamesPlayed: validKeys
+        }, { merge: true });
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar jogos do player:', e);
+        return false;
+    }
+}
+
+async function _lerGamesPlayed(playerId) {
+    try {
+        const doc = await _playersCollection.doc(String(playerId)).get();
+        if (!doc.exists) return [];
+        const gamesPlayed = doc.data().gamesPlayed;
+        return Array.isArray(gamesPlayed) ? gamesPlayed : [];
+    } catch (e) {
+        console.error('Erro ao ler jogos do player:', e);
+        return [];
     }
 }
 
