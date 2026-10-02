@@ -33,6 +33,17 @@ async function _lerPerfilCache(playerId) {
     }
 }
 
+async function _salvarPaisPerfilCache(playerId, countryName, countryChecked = true) {
+    try {
+        await _playersCollection.doc(String(playerId)).update({
+            'dados.countryName': countryName || null,
+            'dados.countryChecked': Boolean(countryChecked)
+        });
+    } catch (e) {
+        console.error('Erro ao salvar país no cache do perfil:', e);
+    }
+}
+
 // ==================== LISTA DE PLAYERS CONHECIDOS (Firestore, compartilhada) ====================
 async function _salvarPlayerLocal(playerId, gamerTag, prefix = '') {
     try {
@@ -272,7 +283,10 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
                 id
                 slug
                 name
-                authorizations {
+                location {
+                    country
+                }
+/* [redacted sensitive line 289] */
                     type
                     externalUsername
                 }
@@ -310,17 +324,20 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     const gamerTagAtual = jogador.gamerTag || gamerTag;
     const prefixAtual = typeof jogador.prefix === 'string' ? jogador.prefix.trim() : '';
     const user = jogador.user;
+    const countryName = typeof user?.location?.country === 'string' && user.location.country.trim()
+        ? user.location.country.trim()
+        : null;
     const standings = json1.data?.player?.recentStandings || [];
     const images = user?.images || [];
-    const authorizations = user?.authorizations || [];
+/* [redacted sensitive line 332] */
     const avatarUrl = images.find(img => (img.type || '').toLowerCase() === 'profile')?.url || null;
     const bannerUrl = images.find(img => (img.type || '').toLowerCase() === 'banner')?.url || null;
     const realName = user?.name || null;
     const userSlug = user?.slug || null;
 
-    const twitchAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITCH');
-    const twitterAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'TWITTER' || (a.type || '').toUpperCase() === 'X');
-    const discordAuth = authorizations.find(a => (a.type || '').toUpperCase() === 'DISCORD');
+/* [redacted sensitive line 338] */
+/* [redacted sensitive line 339] */
+/* [redacted sensitive line 340] */
 
     const setsPorEvento = {};
     for (const standing of standings) {
@@ -335,6 +352,8 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     dados.bannerUrl = bannerUrl;
     dados.realName = realName;
     dados.userSlug = userSlug;
+    dados.countryName = countryName;
+    dados.countryChecked = true;
     dados.social = {
         twitch: twitchAuth ? twitchAuth.externalUsername : null,
         twitter: twitterAuth ? twitterAuth.externalUsername : null,
