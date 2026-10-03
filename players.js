@@ -182,11 +182,35 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
     const torneios = [];
     const colocacoes = [];
     const h2h = {};
+    const characterUsageByGame = new Map();
+    let characterUsageUnavailable = false;
+    let characterUsagePartial = false;
 
     standings.forEach(s => {
         const eventId = s.container?.id;
         const startAt = s.container?.startAt;
         const resultado = setsPorEvento[eventId] || { wins: 0, losses: 0 };
+
+        if (resultado.characterUsageUnavailable) characterUsageUnavailable = true;
+        const usage = resultado.characterUsage;
+        if (usage?.partial) characterUsagePartial = true;
+        if (usage?.gameName && Array.isArray(usage.picks)) {
+            let gameStats = characterUsageByGame.get(usage.gameName);
+            if (!gameStats) {
+                gameStats = { gameName: usage.gameName, reportedSelections: 0, characters: new Map() };
+                characterUsageByGame.set(usage.gameName, gameStats);
+            }
+            gameStats.reportedSelections += Number(usage.reportedSelections) || 0;
+            usage.picks.forEach(pick => {
+                const key = String(pick.characterId || pick.name || '').trim();
+                const name = String(pick.name || '').trim();
+                const count = Number(pick.count) || 0;
+                if (!key || !name || count <= 0) return;
+                const current = gameStats.characters.get(key) || { name, count: 0 };
+                current.count += count;
+                gameStats.characters.set(key, current);
+            });
+        }
 
         totalWins += resultado.wins;
         totalLosses += resultado.losses;
@@ -256,6 +280,22 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
             date: t.date
         }));
 
+    const characterUsage = [...characterUsageByGame.values()]
+        .filter(game => game.reportedSelections > 0)
+        .map(game => ({
+            gameName: game.gameName,
+            reportedSelections: game.reportedSelections,
+            topCharacters: [...game.characters.values()]
+                .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+                .slice(0, 3)
+                .map(character => ({
+                    name: character.name,
+                    count: character.count,
+                    percentage: Math.round((character.count / game.reportedSelections) * 100)
+                }))
+        }))
+        .sort((a, b) => a.gameName.localeCompare(b.gameName));
+
     return {
         gamerTag,
         playerPrefix: prefix || '',
@@ -268,6 +308,9 @@ function processarDadosPlayer(standings, setsPorEvento, gamerTag, prefix = '') {
         recentForm: colocacoesOrdenadas.slice(0, 10),
         highlights,
         headToHead,
+        characterUsage,
+        characterUsageUnavailable,
+        characterUsagePartial,
         tournaments: torneios,
         updatedAt: new Date().toISOString()
     };
@@ -343,7 +386,7 @@ async function _buscarPlayerAoVivo(playerId, gamerTag, prefix = '') {
     for (const standing of standings) {
         const eventId = standing.container?.id;
         if (!eventId) continue;
-        const resultado = await buscarSetsDoEvento(eventId, playerId);
+        const resultado = await buscarSetsDoEvento(eventId, playerId, true);
         setsPorEvento[eventId] = resultado;
     }
 
