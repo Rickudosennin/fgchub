@@ -23,8 +23,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
-    <script src="script.js?v=character-usage-20261003-1"></script>
-    <script src="players.js?v=character-usage-20261003-1"></script>
+    <script src="script.js?v=character-history-scan-20261003-2"></script>
+    <script src="players.js?v=character-history-scan-20261003-2"></script>
     <script src="country-codes.js"></script>
     <script>
         (function() {
@@ -43,6 +43,9 @@
             const conteudo = document.getElementById('perfil_conteudo');
             let jogosPlayer = [];
             let jogosPlayerDraft = [];
+            let dadosPerfilAtual = null;
+            let estadoVarreduraPersonagens = null;
+            const controleVarreduraPersonagens = { running: false, paused: false, waiters: [] };
 
             const GAMES_ART_MAP = {
                 "sf6": {
@@ -522,8 +525,11 @@
                 })[char]);
             }
 
-            function montarHtmlUsoPersonagens(characterUsage, unavailable = false, partial = false) {
+            function montarHtmlUsoPersonagens(characterUsage, unavailable = false, partial = false, historyMeta = {}) {
                 const games = Array.isArray(characterUsage) ? characterUsage : [];
+                const historyComplete = historyMeta.characterUsageHistoryComplete === true;
+                const eventCount = Math.max(0, Number(historyMeta.characterUsageEventCount) || 0);
+                const setCount = Math.max(0, Number(historyMeta.characterUsageSetCount) || 0);
                 const gameCards = games.map(game => {
                     const gameName = escaparTextoPersonagem(game.gameName || 'Jogo');
                     const total = Math.max(0, Number(game.reportedSelections) || 0);
@@ -555,15 +561,40 @@
                 }).join('');
 
                 return `
-                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 w-full min-w-0">
+                    <div id="character-usage-panel" class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 w-full min-w-0">
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Personagens mais usados</h3>
-                            <span class="text-[10px] text-slate-500">Até 15 eventos recentes</span>
+                            <span id="character-usage-scope" class="text-[10px] text-slate-500">${historyComplete ? `Histórico completo · ${eventCount} eventos` : 'Até 15 eventos recentes'}</span>
                         </div>
-                        <p class="text-xs text-slate-500">Top 3 por jogo. Percentuais calculados somente entre seleções de personagem reportadas no Start.gg.</p>
-                        ${gameCards ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">${gameCards}</div>` : `<p class="text-slate-500 text-sm">Nenhum personagem reportado nos sets recentes deste perfil.</p>`}
+                        <p class="text-xs text-slate-500">Top 3 por jogo. Percentuais calculados somente entre personagens reportados pelo jogador no Start.gg.</p>
+                        <div id="character-usage-results">
+                            ${gameCards ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">${gameCards}</div>` : `<p class="text-slate-500 text-sm">${historyComplete ? 'Nenhum personagem reportado nos eventos analisados.' : 'Nenhum personagem reportado nos sets recentes deste perfil.'}</p>`}
+                        </div>
                         ${unavailable ? `<p class="text-xs text-amber-400">Não foi possível consultar os personagens de alguns eventos; as demais estatísticas do perfil continuam disponíveis.</p>` : ''}
                         ${partial ? `<p class="text-xs text-amber-400">A consulta atingiu o limite de 100 sets em pelo menos um evento; os percentuais podem estar parciais.</p>` : ''}
+                        <div class="border-t border-slate-800 pt-4 space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-bold text-slate-300">Últimos 15 eventos</p>
+                                    <p id="character-scan-status" class="text-[11px] text-slate-500 mt-1">Percorre os 15 eventos mais recentes com sets deste perfil. A contagem pode levar alguns minutos; o progresso fica salvo neste navegador.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2 flex-shrink-0">
+                                    <button id="character-scan-start" type="button" onclick="iniciarVarreduraPersonagens()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition">${historyComplete ? 'Recontar últimos 15 eventos' : 'Contar últimos 15 eventos'}</button>
+                                    <button id="character-scan-pause" type="button" onclick="pausarVarreduraPersonagens()" class="hidden text-xs bg-amber-700 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-bold transition">Pausar</button>
+                                    <button id="character-scan-resume" type="button" onclick="continuarVarreduraPersonagens()" class="hidden text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold transition">Continuar</button>
+                                </div>
+                            </div>
+                            <div id="character-scan-progress-wrap" class="hidden space-y-2">
+                                <div class="flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                                    <span id="character-scan-counter">Eventos: 0</span>
+                                    <span id="character-scan-percent" class="tabular-nums">0%</span>
+                                </div>
+                                <div id="character-scan-progressbar" class="h-2.5 rounded-full bg-slate-800 overflow-hidden" role="progressbar" aria-label="Progresso da contagem de eventos" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                    <div id="character-scan-progress-fill" class="h-full rounded-full bg-red-500 transition-all duration-300" style="width:0%"></div>
+                                </div>
+                                <p id="character-scan-detail" class="text-[10px] text-slate-500"></p>
+                            </div>
+                        </div>
                     </div>
                 `;
             }
@@ -573,7 +604,8 @@
                     gamerTag, totalWins, totalLosses, winrateAllTime,
                     recentForm, highlights, headToHead, tournaments, avatarUrl, bannerUrl, playerPrefix,
                     realName, social, userSlug, characterArt, countryName, countryCode,
-                    characterUsage, characterUsageUnavailable, characterUsagePartial
+                    characterUsage, characterUsageUnavailable, characterUsagePartial,
+                    characterUsageHistoryComplete, characterUsageEventCount, characterUsageSetCount
                 } = dados;
                 const charArtInfo = getCharArtInfo(characterArt);
                 const sponsorLogoInfo = getSponsorLogoInfo(playerPrefix);
@@ -700,7 +732,7 @@
                             `}
                         </div>
 
-                        ${montarHtmlUsoPersonagens(characterUsage, characterUsageUnavailable, characterUsagePartial)}
+                        ${montarHtmlUsoPersonagens(characterUsage, characterUsageUnavailable, characterUsagePartial, { characterUsageHistoryComplete, characterUsageEventCount, characterUsageSetCount })}
 
                         <!-- RECENT FORM -->
                         <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
@@ -961,6 +993,255 @@
                 }
             }
 
+            const chaveEstadoVarredura = `fgchub:character-history-scan:v1:${String(playerId || '')}`;
+
+            function salvarEstadoVarreduraLocal(state = estadoVarreduraPersonagens) {
+                if (!state) return;
+                try {
+                    window.localStorage.setItem(chaveEstadoVarredura, JSON.stringify(state));
+                } catch (e) {
+                    console.warn('Não foi possível salvar o ponto de retomada neste navegador:', e);
+                }
+            }
+
+            function carregarEstadoVarreduraLocal() {
+                try {
+                    const saved = JSON.parse(window.localStorage.getItem(chaveEstadoVarredura) || 'null');
+                    if (!saved || saved.version !== 2 || String(saved.playerId) !== String(playerId)) return null;
+                    if (saved.status === 'running' && !controleVarreduraPersonagens.running) {
+                        saved.status = 'paused';
+                        salvarEstadoVarreduraLocal(saved);
+                    }
+                    return saved;
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            function aplicarHistoricoCompleto(dados, history) {
+                if (!history?.complete || !Array.isArray(history.usage)) return;
+                dados.characterUsage = history.usage;
+                dados.characterUsageUnavailable = false;
+                dados.characterUsagePartial = false;
+                dados.characterUsageHistoryComplete = true;
+                dados.characterUsageEventCount = Math.max(0, Number(history.eventCount) || 0);
+                dados.characterUsageSetCount = Math.max(0, Number(history.setCount) || 0);
+                dados.characterUsageReportedSelections = Math.max(0, Number(history.reportedSelections) || 0);
+                dados.characterUsageHistoryCompletedAt = history.completedAt || null;
+            }
+
+            function obterHistoricoCompletoLocal(state) {
+                if (state?.status !== 'complete' || !Array.isArray(state.characterUsage)) return null;
+                return {
+                    complete: true,
+                    eventCount: (state.events || []).length,
+                    setCount: Number(state.scannedSets) || 0,
+                    reportedSelections: Number(state.totalSelections) || 0,
+                    usage: state.characterUsage,
+                    completedAt: state.completedAt || null
+                };
+            }
+
+            function atualizarInterfaceVarreduraPersonagens() {
+                const statusElement = document.getElementById('character-scan-status');
+                const progressWrap = document.getElementById('character-scan-progress-wrap');
+                const progressBar = document.getElementById('character-scan-progressbar');
+                const progressFill = document.getElementById('character-scan-progress-fill');
+                const counter = document.getElementById('character-scan-counter');
+                const percentElement = document.getElementById('character-scan-percent');
+                const detail = document.getElementById('character-scan-detail');
+                const startButton = document.getElementById('character-scan-start');
+                const pauseButton = document.getElementById('character-scan-pause');
+                const resumeButton = document.getElementById('character-scan-resume');
+                if (!statusElement || !progressWrap) return;
+
+                const state = estadoVarreduraPersonagens;
+                const historyComplete = dadosPerfilAtual?.characterUsageHistoryComplete === true;
+                const completedEventCount = Math.max(0, Number(dadosPerfilAtual?.characterUsageEventCount) || 0);
+                let percent = 0;
+                let counterText = '';
+                let detailText = '';
+                let statusText = 'Percorre os eventos com sets deste perfil. A contagem pode levar alguns minutos; o progresso fica salvo neste navegador.';
+
+                if (!state) {
+                    const showCachedCompletion = historyComplete;
+                    progressWrap.classList.toggle('hidden', !showCachedCompletion);
+                    if (showCachedCompletion) {
+                        percent = 100;
+                        counterText = `${completedEventCount} eventos analisados`;
+                        detailText = `${Number(dadosPerfilAtual?.characterUsageSetCount) || 0} sets percorridos · ${Number(dadosPerfilAtual?.characterUsageReportedSelections) || 0} seleções reportadas`;
+                        statusText = 'Histórico completo carregado do cache compartilhado.';
+                    }
+                    if (startButton) startButton.textContent = showCachedCompletion ? 'Recontar últimos 15 eventos' : 'Contar últimos 15 eventos';
+                } else {
+                    progressWrap.classList.remove('hidden');
+                    const totalEvents = (state.events || []).length;
+                    const currentEvent = state.events?.[state.eventIndex] || null;
+                    if (state.phase === 'index') {
+                        const totalPages = Math.max(1, Number(state.indexTotalPages) || 1);
+                        const donePages = Math.min(totalPages, Math.max(0, (Number(state.indexPage) || 1) - 1));
+                        percent = Math.round(10 * donePages / totalPages);
+                        counterText = `${totalEvents} eventos identificados`;
+                        detailText = `Indexando sets: página ${donePages}/${totalPages} · ${Number(state.totalSets) || 0} sets no histórico`;
+                    } else if (state.phase === 'scan') {
+                        const pageTotal = Math.max(1, Number(currentEvent?.totalPages) || 1);
+                        const pageDone = currentEvent?.status === 'complete'
+                            ? 1
+                            : Math.min(1, Math.max(0, ((Number(currentEvent?.page) || 1) - 1) / pageTotal));
+                        const eventProgress = totalEvents > 0
+                            ? (Math.min(Number(state.eventIndex) || 0, totalEvents) + pageDone) / totalEvents
+                            : 0;
+                        percent = Math.round(10 + 90 * eventProgress);
+                        counterText = `Eventos concluídos: ${Number(state.completedEvents) || 0}/${totalEvents}`;
+                        detailText = currentEvent
+                            ? `Evento ${Math.min((Number(state.eventIndex) || 0) + 1, totalEvents)}/${totalEvents}: ${currentEvent.eventName || 'Evento'} · página ${currentEvent.page || 1}/${currentEvent.totalPages || '…'}`
+                            : 'Finalizando a contagem dos eventos.';
+                    } else if (state.phase === 'complete' || state.status === 'complete') {
+                        percent = 100;
+                        counterText = `${totalEvents} eventos concluídos`;
+                        detailText = `${Number(state.scannedSets) || 0} sets percorridos · ${Number(state.totalSelections) || 0} seleções reportadas`;
+                    }
+
+                    if (state.status === 'paused') statusText = 'Pausado. O ponto de retomada foi salvo neste navegador; clique em Continuar quando quiser.';
+                    else if (state.status === 'error') statusText = state.errorMessage || 'A consulta parou. O progresso está salvo; clique em Continuar para tentar novamente.';
+                    else if (Number(state.rateWaitSeconds) > 0) statusText = `Aguardando uma janela segura da API (${Number(state.rateWaitSeconds)} s)…`;
+                    else if (state.status === 'complete') statusText = `Concluído: ${totalEvents} eventos, ${Number(state.totalSelections) || 0} seleções de personagem reportadas.`;
+                    else if (state.phase === 'index') statusText = 'Localizando todos os eventos com sets registrados para este jogador…';
+                    else statusText = 'Lendo somente as seleções de personagem reportadas nos sets deste jogador…';
+
+                    if (startButton) startButton.textContent = 'Recontar últimos 15 eventos';
+                }
+
+                percent = Math.max(0, Math.min(100, percent));
+                statusElement.textContent = statusText;
+                if (counter) counter.textContent = counterText;
+                if (detail) detail.textContent = detailText;
+                if (percentElement) percentElement.textContent = `${percent}%`;
+                if (progressFill) progressFill.style.width = `${percent}%`;
+                if (progressBar) progressBar.setAttribute('aria-valuenow', String(percent));
+
+                const running = controleVarreduraPersonagens.running;
+                const paused = controleVarreduraPersonagens.paused || state?.status === 'paused';
+                if (startButton) startButton.classList.toggle('hidden', running || Boolean(state && state.status !== 'complete'));
+                if (pauseButton) pauseButton.classList.toggle('hidden', !running || paused);
+                if (resumeButton) resumeButton.classList.toggle('hidden', !state || (!paused && state.status !== 'error') || (running && !paused));
+            }
+
+            function atualizarCardPersonagensAtual() {
+                const currentPanel = document.getElementById('character-usage-panel');
+                if (!currentPanel || !dadosPerfilAtual) return;
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = montarHtmlUsoPersonagens(
+                    dadosPerfilAtual.characterUsage,
+                    dadosPerfilAtual.characterUsageUnavailable,
+                    dadosPerfilAtual.characterUsagePartial,
+                    dadosPerfilAtual
+                );
+                const nextPanel = wrapper.firstElementChild;
+                if (nextPanel) currentPanel.replaceWith(nextPanel);
+                atualizarInterfaceVarreduraPersonagens();
+            }
+
+            function esperarRetomadaVarreduraPersonagens() {
+                if (!controleVarreduraPersonagens.paused) return Promise.resolve();
+                return new Promise(resolve => controleVarreduraPersonagens.waiters.push(resolve));
+            }
+
+            window.iniciarVarreduraPersonagens = async function() {
+                if (controleVarreduraPersonagens.running || !playerId) return;
+                let state = carregarEstadoVarreduraLocal() || estadoVarreduraPersonagens;
+                if (!state || state.status === 'complete') {
+                    state = typeof criarEstadoHistoricoPersonagens === 'function'
+                        ? criarEstadoHistoricoPersonagens(playerId, dadosPerfilAtual?.tournaments || [])
+                        : null;
+                }
+                if (!state || typeof varrerHistoricoCompletoPersonagens !== 'function') {
+                    const status = document.getElementById('character-scan-status');
+                    if (status) status.textContent = 'Não foi possível iniciar a contagem. Atualize a página e tente novamente.';
+                    return;
+                }
+
+                estadoVarreduraPersonagens = state;
+                controleVarreduraPersonagens.running = true;
+                controleVarreduraPersonagens.paused = false;
+                state.status = 'running';
+                salvarEstadoVarreduraLocal(state);
+                atualizarInterfaceVarreduraPersonagens();
+
+                try {
+                    await varrerHistoricoCompletoPersonagens(playerId, state, {
+                        saveState: async current => {
+                            estadoVarreduraPersonagens = current;
+                            salvarEstadoVarreduraLocal(current);
+                        },
+                        onProgress: current => {
+                            estadoVarreduraPersonagens = current;
+                            atualizarInterfaceVarreduraPersonagens();
+                        },
+                        waitIfPaused: esperarRetomadaVarreduraPersonagens,
+                        onWait: seconds => {
+                            if (!estadoVarreduraPersonagens) return;
+                            if (seconds > 0) estadoVarreduraPersonagens.rateWaitSeconds = seconds;
+                            else delete estadoVarreduraPersonagens.rateWaitSeconds;
+                            atualizarInterfaceVarreduraPersonagens();
+                        }
+                    });
+
+                    if (state.status === 'complete') {
+                        const history = {
+                            complete: true,
+                            eventCount: state.events.length,
+                            setCount: state.scannedSets,
+                            reportedSelections: state.totalSelections,
+                            usage: state.characterUsage || [],
+                            completedAt: state.completedAt || new Date().toISOString()
+                        };
+                        if (dadosPerfilAtual) aplicarHistoricoCompleto(dadosPerfilAtual, history);
+                        if (typeof _salvarHistoricoPersonagensCache === 'function') {
+                            await _salvarHistoricoPersonagensCache(playerId, history);
+                        }
+                        atualizarCardPersonagensAtual();
+                    }
+                } catch (error) {
+                    console.warn('Varredura de personagens interrompida:', error);
+                    if (state.status !== 'error') {
+                        state.status = 'error';
+                        state.errorMessage = 'A consulta foi interrompida. O progresso está salvo; clique em Continuar para tentar novamente.';
+                        salvarEstadoVarreduraLocal(state);
+                    }
+                } finally {
+                    controleVarreduraPersonagens.running = false;
+                    controleVarreduraPersonagens.paused = false;
+                    atualizarInterfaceVarreduraPersonagens();
+                }
+            };
+
+            window.pausarVarreduraPersonagens = function() {
+                if (!controleVarreduraPersonagens.running) return;
+                controleVarreduraPersonagens.paused = true;
+                if (estadoVarreduraPersonagens) {
+                    estadoVarreduraPersonagens.status = 'paused';
+                    delete estadoVarreduraPersonagens.rateWaitSeconds;
+                    salvarEstadoVarreduraLocal(estadoVarreduraPersonagens);
+                }
+                atualizarInterfaceVarreduraPersonagens();
+            };
+
+            window.continuarVarreduraPersonagens = function() {
+                if (!controleVarreduraPersonagens.running) {
+                    window.iniciarVarreduraPersonagens();
+                    return;
+                }
+                if (!controleVarreduraPersonagens.paused) return;
+                controleVarreduraPersonagens.paused = false;
+                if (estadoVarreduraPersonagens) {
+                    estadoVarreduraPersonagens.status = 'running';
+                    salvarEstadoVarreduraLocal(estadoVarreduraPersonagens);
+                }
+                controleVarreduraPersonagens.waiters.splice(0).forEach(resolve => resolve());
+                atualizarInterfaceVarreduraPersonagens();
+            };
+
             async function carregarPerfil(forceRefresh = false) {
                 if (!playerId) {
                     conteudo.innerHTML = '<div class="history-empty">Player não especificado na URL.</div>';
@@ -979,8 +1260,24 @@
                         console.warn('Não foi possível carregar os jogos do player:', gamesError);
                     }
                     jogosPlayer = Array.isArray(savedGames) ? [...new Set(savedGames.filter(key => GAMES_PLAYED_MAP[key]))] : [];
+                    estadoVarreduraPersonagens = carregarEstadoVarreduraLocal();
+                    let sharedHistory = null;
+                    try {
+                        if (typeof _lerHistoricoPersonagensCache === 'function') {
+                            sharedHistory = await _lerHistoricoPersonagensCache(playerId);
+                        }
+                    } catch (historyError) {
+                        console.warn('Não foi possível carregar o resumo completo de personagens:', historyError);
+                    }
+                    const localHistory = obterHistoricoCompletoLocal(estadoVarreduraPersonagens);
+                    const historyToApply = localHistory && (!sharedHistory || String(localHistory.completedAt || '') > String(sharedHistory.completedAt || ''))
+                        ? localHistory
+                        : sharedHistory;
+                    if (historyToApply) aplicarHistoricoCompleto(dados, historyToApply);
+                    dadosPerfilAtual = dados;
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     renderizarGraficoEvolucao(dados.tournaments || []);
+                    atualizarInterfaceVarreduraPersonagens();
                     if (fonte === 'cache' && dados.countryChecked !== true && !dados.countryName && !dados.countryCode) {
                         void atualizarPaisCacheAntigo(playerId, dados);
                     }
