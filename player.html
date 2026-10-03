@@ -23,8 +23,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
-    <script src="script.js"></script>
-    <script src="players.js?v=games-played-20261002-1"></script>
+    <script src="script.js?v=character-usage-20261003-1"></script>
+    <script src="players.js?v=character-usage-20261003-1"></script>
     <script src="country-codes.js"></script>
     <script>
         (function() {
@@ -348,6 +348,20 @@
                 }
             };
 
+            // Mapa independente do seletor Personagem.
+            // Para adicionar um jogo sem artes de personagens, cadastre-o somente aqui.
+            // Formato: "novojogo": { label: "Nome do jogo", logo: "imagens/logos/logonovojogo.png" },
+            const GAMES_PLAYED_MAP = {
+                "sf6": { label: GAMES_ART_MAP["sf6"].label, logo: GAMES_ART_MAP["sf6"].logo },
+                "mk1": { label: GAMES_ART_MAP["mk1"].label, logo: GAMES_ART_MAP["mk1"].logo },
+                "tekken8": { label: GAMES_ART_MAP["tekken8"].label, logo: GAMES_ART_MAP["tekken8"].logo },
+                "2xko": { label: GAMES_ART_MAP["2xko"].label, logo: GAMES_ART_MAP["2xko"].logo },
+                "ffcotw": { label: GAMES_ART_MAP["ffcotw"].label, logo: GAMES_ART_MAP["ffcotw"].logo },
+                "gbvsr": { label: GAMES_ART_MAP["gbvsr"].label, logo: GAMES_ART_MAP["gbvsr"].logo },
+                "ggst": { label: GAMES_ART_MAP["ggst"].label, logo: GAMES_ART_MAP["ggst"].logo },
+                "mtfs": { label: GAMES_ART_MAP["mtfs"].label, logo: GAMES_ART_MAP["mtfs"].logo }
+            };
+
             const SPONSOR_LOGO_FILES = [
                 "2GAME.webp",
                 "2GAME_MDT.webp",
@@ -502,11 +516,64 @@
                 return `${placement}º`;
             }
 
+            function escaparTextoPersonagem(value) {
+                return String(value ?? '').replace(/[&<>"']/g, char => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                })[char]);
+            }
+
+            function montarHtmlUsoPersonagens(characterUsage, unavailable = false, partial = false) {
+                const games = Array.isArray(characterUsage) ? characterUsage : [];
+                const gameCards = games.map(game => {
+                    const gameName = escaparTextoPersonagem(game.gameName || 'Jogo');
+                    const total = Math.max(0, Number(game.reportedSelections) || 0);
+                    const rows = (Array.isArray(game.topCharacters) ? game.topCharacters : []).map((character, index) => {
+                        const name = escaparTextoPersonagem(character.name || 'Desconhecido');
+                        const count = Math.max(0, Number(character.count) || 0);
+                        const percentage = Math.max(0, Math.min(100, Number(character.percentage) || 0));
+                        return `
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between gap-3 text-sm">
+                                    <span class="text-slate-200 font-semibold truncate">${index + 1}. ${name}</span>
+                                    <span class="text-white font-bold tabular-nums flex-shrink-0">${percentage}% <span class="text-slate-500 text-xs font-normal">(${count}/${total})</span></span>
+                                </div>
+                                <div class="h-2 rounded-full bg-slate-800 overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}" aria-label="${name}: ${percentage}%">
+                                    <div class="h-full rounded-full bg-red-500" style="width:${percentage}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    return `
+                        <div class="bg-slate-950/50 border border-slate-800 rounded-lg p-4 space-y-3 min-w-0">
+                            <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
+                                <h4 class="text-sm font-bold text-white truncate">${gameName}</h4>
+                                <span class="text-[10px] text-slate-500 flex-shrink-0">${total} seleções</span>
+                            </div>
+                            ${rows}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 w-full min-w-0">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Personagens mais usados</h3>
+                            <span class="text-[10px] text-slate-500">Até 15 eventos recentes</span>
+                        </div>
+                        <p class="text-xs text-slate-500">Top 3 por jogo. Percentuais calculados somente entre seleções de personagem reportadas no Start.gg.</p>
+                        ${gameCards ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">${gameCards}</div>` : `<p class="text-slate-500 text-sm">Nenhum personagem reportado nos sets recentes deste perfil.</p>`}
+                        ${unavailable ? `<p class="text-xs text-amber-400">Não foi possível consultar os personagens de alguns eventos; as demais estatísticas do perfil continuam disponíveis.</p>` : ''}
+                        ${partial ? `<p class="text-xs text-amber-400">A consulta atingiu o limite de 100 sets em pelo menos um evento; os percentuais podem estar parciais.</p>` : ''}
+                    </div>
+                `;
+            }
+
             function montarHtmlPerfil(dados, fonte) {
                 const {
                     gamerTag, totalWins, totalLosses, winrateAllTime,
                     recentForm, highlights, headToHead, tournaments, avatarUrl, bannerUrl, playerPrefix,
-                    realName, social, userSlug, characterArt, countryName, countryCode
+                    realName, social, userSlug, characterArt, countryName, countryCode,
+                    characterUsage, characterUsageUnavailable, characterUsagePartial
                 } = dados;
                 const charArtInfo = getCharArtInfo(characterArt);
                 const sponsorLogoInfo = getSponsorLogoInfo(playerPrefix);
@@ -620,7 +687,7 @@
                             ` : `
                                 <div class="flex flex-wrap gap-3">
                                     ${jogosPlayer.map(gameKey => {
-                                        const game = GAMES_ART_MAP[gameKey];
+                                        const game = GAMES_PLAYED_MAP[gameKey];
                                         if (!game) return '';
                                         return `
                                             <div class="w-28 sm:w-32 min-h-20 rounded-lg border border-slate-700 bg-slate-800/60 p-2 flex flex-col items-center justify-center gap-1.5">
@@ -632,6 +699,8 @@
                                 </div>
                             `}
                         </div>
+
+                        ${montarHtmlUsoPersonagens(characterUsage, characterUsageUnavailable, characterUsagePartial)}
 
                         <!-- RECENT FORM -->
                         <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
@@ -757,7 +826,7 @@
                                 </button>
                             </div>
                             <div id="games_played_grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                ${Object.entries(GAMES_ART_MAP).map(([gameKey, game]) => `
+                                ${Object.entries(GAMES_PLAYED_MAP).map(([gameKey, game]) => `
                                     <button type="button" data-game-key="${gameKey}" aria-pressed="${jogosPlayer.includes(gameKey)}" onclick="toggleJogoPlayer('${gameKey}')" class="min-h-24 flex flex-col items-center justify-center gap-2 p-3 rounded-lg border ${jogosPlayer.includes(gameKey) ? 'border-red-500 bg-slate-800' : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'} transition">
                                         <img src="${game.logo}" alt="${game.label}" class="w-full h-10 object-contain" loading="lazy" decoding="async">
                                         <span class="text-[11px] sm:text-xs text-slate-300 text-center leading-tight">${game.label}</span>
@@ -909,7 +978,7 @@
                     } catch (gamesError) {
                         console.warn('Não foi possível carregar os jogos do player:', gamesError);
                     }
-                    jogosPlayer = Array.isArray(savedGames) ? [...new Set(savedGames.filter(key => GAMES_ART_MAP[key]))] : [];
+                    jogosPlayer = Array.isArray(savedGames) ? [...new Set(savedGames.filter(key => GAMES_PLAYED_MAP[key]))] : [];
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     renderizarGraficoEvolucao(dados.tournaments || []);
                     if (fonte === 'cache' && dados.countryChecked !== true && !dados.countryName && !dados.countryCode) {
@@ -980,7 +1049,7 @@
             };
 
             window.toggleJogoPlayer = function(gameKey) {
-                if (!GAMES_ART_MAP[gameKey]) return;
+                if (!GAMES_PLAYED_MAP[gameKey]) return;
                 jogosPlayerDraft = jogosPlayerDraft.includes(gameKey)
                     ? jogosPlayerDraft.filter(key => key !== gameKey)
                     : [...jogosPlayerDraft, gameKey];
@@ -993,7 +1062,7 @@
                 button.disabled = true;
                 button.textContent = 'Salvando...';
                 status.textContent = '';
-                const selectedGames = [...new Set(jogosPlayerDraft)].filter(key => GAMES_ART_MAP[key]);
+                const selectedGames = [...new Set(jogosPlayerDraft)].filter(key => GAMES_PLAYED_MAP[key]);
                 let saved = false;
                 try {
                     if (typeof _salvarGamesPlayed === 'function') {
