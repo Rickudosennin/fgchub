@@ -15,17 +15,43 @@
     <div class="max-w-5xl mx-auto space-y-6 w-full min-w-0">
         <a href="buscar.html" class="text-slate-400 hover:text-red-500 text-sm mb-2 inline-block transition">&larr; Voltar para a busca</a>
 
-        <div id="perfil_conteudo" class="w-full min-w-0">
-            <div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando perfil...</p></div>
+    <div id="perfil_conteudo" class="w-full min-w-0">
+        <div class="loading-attendees"><div class="spinner"></div><p style="margin-top:15px;">Carregando perfil...</p></div>
+    </div>
+</div>
+
+<div id="performance-share-modal" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm p-3 sm:p-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="performance-share-title" onclick="if(event.target===this) fecharCompartilhamentoDesempenho()">
+    <div class="max-w-6xl mx-auto my-4 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between gap-4 p-4 sm:p-5 border-b border-slate-800">
+            <div>
+                <h2 id="performance-share-title" class="font-black text-white">Compartilhar desempenho</h2>
+                <p class="text-xs text-slate-400 mt-1">Prévia do card PNG em 1920 × 1080.</p>
+            </div>
+            <button type="button" onclick="fecharCompartilhamentoDesempenho()" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" aria-label="Fechar prévia">✕</button>
+        </div>
+        <div class="p-4 sm:p-5 space-y-4">
+            <div class="min-h-40 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden">
+                <img id="performance-share-preview" class="hidden w-full h-auto" alt="Prévia do card de desempenho do jogador">
+                <p id="performance-share-status" class="text-sm text-slate-400 p-8 text-center" role="status">Preparando o card…</p>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p class="text-xs text-slate-500">Os dados são os já carregados no perfil; esta ação não faz novas consultas à API.</p>
+                <div class="flex flex-wrap gap-2">
+                    <button id="performance-share-download" type="button" onclick="baixarCardDesempenho()" disabled class="disabled:opacity-50 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg font-bold">Baixar PNG</button>
+                    <button id="performance-share-native" type="button" onclick="compartilharCardDesempenho()" disabled class="disabled:opacity-50 text-sm bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold">Compartilhar PNG</button>
+                </div>
+            </div>
         </div>
     </div>
+</div>
 
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js?v=character-history-scan-20261003-2"></script>
     <script src="players.js?v=character-history-scan-20261003-2"></script>
     <script src="country-codes.js"></script>
+    <script src="player-share.js?v=20261008-3"></script>
     <script>
         (function() {
             if (window._playerLoaded) {
@@ -642,9 +668,9 @@
                                         ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover" alt="${gamerTag}">` : `<div class="w-full h-full flex items-center justify-center text-3xl font-bold text-slate-600">${gamerTag.charAt(0)}</div>`}
                                     </div>
                                     <div class="space-y-1 min-w-0 w-full">
-                                        <h1 class="text-2xl md:text-3xl font-black tracking-wide text-white flex items-center justify-center md:justify-start gap-3 break-all">
-                                            <span>${displayName}</span>
-                                            <div class="inline-flex items-center gap-2.5 text-base font-normal ml-1">
+                                        <h1 class="w-full min-w-0 text-2xl md:text-3xl font-black tracking-wide text-white flex flex-nowrap items-center justify-center md:justify-start gap-3 overflow-hidden whitespace-nowrap">
+                                            <span class="min-w-0 flex-1 truncate whitespace-nowrap">${displayName}</span>
+                                            <div class="inline-flex flex-shrink-0 items-center gap-2.5 text-base font-normal ml-1">
                                                 <a href="${startGgUrl}" target="_blank" rel="noopener noreferrer" title="Perfil Start.gg" class="text-slate-400 hover:text-red-500 transition">
                                                     <i class="fa-solid fa-gamepad"></i>
                                                 </a>
@@ -680,6 +706,9 @@
                                     </button>
                                     <button onclick="abrirSeletorJogosPlayer()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
                                         <i class="fa-solid fa-gamepad"></i> Jogos
+                                    </button>
+                                    <button id="share-performance-button" onclick="abrirCompartilhamentoDesempenho()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-share-nodes"></i> Compartilhar
                                     </button>
                                     <button onclick="atualizarDados()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
                                         <i class="fa-solid fa-rotate"></i> Atualizar
@@ -1290,6 +1319,162 @@
             window.atualizarDados = function() {
                 carregarPerfil(true);
             };
+
+            let performanceShareBlob = null;
+            let performanceShareObjectUrl = null;
+            let performanceShareName = 'player';
+
+            window.abrirCompartilhamentoDesempenho = async function() {
+                const modal = document.getElementById('performance-share-modal');
+                const preview = document.getElementById('performance-share-preview');
+                const status = document.getElementById('performance-share-status');
+                const downloadButton = document.getElementById('performance-share-download');
+                const shareButton = document.getElementById('performance-share-native');
+                const trigger = document.getElementById('share-performance-button');
+                if (!dadosPerfilAtual || !window.FGCPlayerShareCard?.render) {
+                    status.textContent = 'O perfil ainda não está pronto para gerar o card.';
+                    modal.classList.remove('hidden');
+                    return;
+                }
+
+                modal.classList.remove('hidden');
+                preview.classList.add('hidden');
+                preview.removeAttribute('src');
+                status.classList.remove('hidden');
+                status.textContent = 'Preparando o PNG 1920 × 1080…';
+                downloadButton.disabled = true;
+                shareButton.disabled = true;
+                if (trigger) {
+                    trigger.disabled = true;
+                    trigger.classList.add('opacity-60');
+                }
+                if (performanceShareObjectUrl) URL.revokeObjectURL(performanceShareObjectUrl);
+                performanceShareObjectUrl = null;
+                performanceShareBlob = null;
+
+                try {
+                    const dados = dadosPerfilAtual;
+                    const selectedArt = getCharArtInfo(dados.characterArt);
+                    const firstReportedGame = dados.characterUsage?.[0];
+                    const firstReportedCharacter = firstReportedGame?.topCharacters?.[0];
+                    const mainCharacter = selectedArt || (firstReportedCharacter ? {
+                        label: firstReportedCharacter.name,
+                        file: '',
+                        gameName: firstReportedGame?.gameName || '',
+                        source: 'usage'
+                    } : null);
+                    const sponsorInfo = getSponsorLogoInfo(dados.playerPrefix || '');
+                    const countryIso = (window.fgcCountryIso2 && (window.fgcCountryIso2(dados.countryCode) || window.fgcCountryIso2(dados.countryName))) || '';
+                    const selectedGames = jogosPlayer.map(key => {
+                        const game = GAMES_PLAYED_MAP[key];
+                        return game ? { label: game.label, logo: encodeURI(game.logo) } : null;
+                    }).filter(Boolean);
+                    const prefixText = String(dados.playerPrefix || '').trim();
+                    const tagText = String(dados.gamerTag || gamerTag || 'Player').trim();
+                    const displayName = prefixText ? `${prefixText} | ${tagText}` : tagText;
+
+                    performanceShareName = displayName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'player';
+                    performanceShareBlob = await window.FGCPlayerShareCard.render({
+                        displayName,
+                        gamerTag: tagText,
+                        realName: dados.realName || '',
+                        countryName: dados.countryName || '',
+                        countryCode: countryIso,
+                        flagUrl: countryIso ? `https://flagcdn.com/w80/${countryIso.toLowerCase()}.png` : '',
+                        avatarUrl: dados.avatarUrl || '',
+                        sponsor: prefixText,
+                        sponsorLogoUrl: sponsorInfo ? encodeURI(sponsorInfo.file) : '',
+                        wins: dados.totalWins,
+                        losses: dados.totalLosses,
+                        winRate: dados.winrateAllTime,
+                        tournamentCount: Array.isArray(dados.tournaments) ? dados.tournaments.length : 0,
+                        mainCharacterName: mainCharacter?.label || '',
+                        mainCharacterImage: mainCharacter?.file ? encodeURI(mainCharacter.file) : '',
+                        mainCharacterSource: mainCharacter?.source === 'usage' ? 'usage' : 'profile',
+                        mainCharacterGame: mainCharacter?.gameName || '',
+                        games: selectedGames,
+                        characterUsage: dados.characterUsage || [],
+                        historyComplete: dados.characterUsageHistoryComplete === true,
+                        eventCount: dados.characterUsageEventCount || 0,
+                        setCount: dados.characterUsageSetCount || 0,
+                        partial: dados.characterUsagePartial === true,
+                        tournaments: Array.isArray(dados.tournaments) ? dados.tournaments : [],
+                        recentForm: dados.recentForm || []
+                    });
+                    performanceShareObjectUrl = URL.createObjectURL(performanceShareBlob);
+                    preview.src = performanceShareObjectUrl;
+                    preview.classList.remove('hidden');
+                    status.classList.add('hidden');
+                    downloadButton.disabled = false;
+                    shareButton.disabled = false;
+                } catch (error) {
+                    console.error('Erro ao gerar card de desempenho:', error);
+                    status.textContent = 'Não foi possível gerar o PNG. Tente novamente em alguns instantes.';
+                    status.classList.remove('hidden');
+                } finally {
+                    if (trigger) {
+                        trigger.disabled = false;
+                        trigger.classList.remove('opacity-60');
+                    }
+                }
+            };
+
+            window.fecharCompartilhamentoDesempenho = function() {
+                document.getElementById('performance-share-modal').classList.add('hidden');
+                if (performanceShareObjectUrl) URL.revokeObjectURL(performanceShareObjectUrl);
+                performanceShareObjectUrl = null;
+                performanceShareBlob = null;
+            };
+
+            window.baixarCardDesempenho = function() {
+                if (!performanceShareBlob) return;
+                const downloadUrl = URL.createObjectURL(performanceShareBlob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `fgchub-${performanceShareName}-desempenho.png`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+            };
+
+            window.compartilharCardDesempenho = async function() {
+                if (!performanceShareBlob) return;
+                const status = document.getElementById('performance-share-status');
+                const displayName = dadosPerfilAtual?.gamerTag || gamerTag || 'Player';
+                try {
+                    if (typeof File === 'undefined' || !navigator.share || !navigator.canShare) {
+                        window.baixarCardDesempenho();
+                        status.textContent = 'Compartilhamento direto indisponível neste navegador; o PNG foi baixado.';
+                        status.classList.remove('hidden');
+                        return;
+                    }
+                    const file = new File([performanceShareBlob], `fgchub-${performanceShareName}-desempenho.png`, { type: 'image/png' });
+                    if (!navigator.canShare({ files: [file] })) {
+                        window.baixarCardDesempenho();
+                        status.textContent = 'Este navegador não compartilha arquivos diretamente; o PNG foi baixado.';
+                        status.classList.remove('hidden');
+                        return;
+                    }
+                    await navigator.share({
+                        files: [file],
+                        title: `Desempenho de ${displayName}`,
+                        text: `Confira o desempenho de ${displayName} no FGC HUB.`
+                    });
+                } catch (error) {
+                    if (error?.name !== 'AbortError') {
+                        console.error('Erro ao compartilhar card:', error);
+                        status.textContent = 'Não foi possível abrir o compartilhamento. Você pode baixar o PNG.';
+                        status.classList.remove('hidden');
+                    }
+                }
+            };
+
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && !document.getElementById('performance-share-modal').classList.contains('hidden')) {
+                    window.fecharCompartilhamentoDesempenho();
+                }
+            });
 
             window.abrirSeletorChar = function() {
                 voltarASeletorJogos();
