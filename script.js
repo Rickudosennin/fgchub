@@ -40,13 +40,13 @@ const games = [
     { "label": "Mortal Kombat 1", "value": "MK1", "videogameId": 48599 }, { "label": "Mortal Kombat 11", "value": "MK11", "videogameId": 3200 },
     { "label": "Mortal Kombat X", "value": "MKX", "videogameId": 22 }, { "label": "Ultimate Mortal Kombat 3", "value": "UMK3", "videogameId": 55 },
     { "label": "MultiVersus", "value": "MVS", "videogameId": 45044 }, { "label": "Pocket Bravery", "value": "PB", "videogameId": 44108 },
-    { "label": "Rivals of Aether", "value": "ROA", "videogameId": 24, "hidden": true }, { "label": "Rocket League", "value": "ROCKET_LEAGUE", "videogameId": 14 },
+    { "label": "Rivals of Aether", "value": "ROA", "videogameId": 24, "hidden": false }, { "label": "Rocket League", "value": "ROCKET_LEAGUE", "videogameId": 14 },
     { "label": "Samurai Shodown", "value": "SS", "videogameId": 3568, "hidden": false },
     { "label": "Skullgirls 2nd Encore", "value": "SG", "videogameId": 12 }, { "label": "Street Fighter 6", "value": "SF6", "videogameId": 43868 },
     { "label": "Street Fighter III: 3rd Strike", "value": "SF3", "videogameId": 43 }, { "label": "Super Smash Bros. Melee", "value": "SSBM", "videogameId": 1 },
     { "label": "Super Smash Bros. Ultimate", "value": "SSBU", "videogameId": 1386 }, { "label": "Super Street Fighter II Turbo", "value": "ST", "videogameId": 33 },
-    { "label": "Tekken 7", "value": "TEKKEN7", "videogameId": 17, "hidden": true }, { "label": "Tekken 8", "value": "TEKKEN8", "videogameId": 49783 },
-    { "label": "The King of Fighters XV", "value": "KOF XV", "videogameId": 36963 }, { "label": "Ultimate Marvel vs. Capcom 3", "value": "UMVC3", "videogameId": 10, "hidden": true },
+    { "label": "Tekken 7", "value": "TEKKEN7", "videogameId": 17, "hidden": false }, { "label": "Tekken 8", "value": "TEKKEN8", "videogameId": 49783 },
+    { "label": "The King of Fighters XV", "value": "KOF XV", "videogameId": 36963 }, { "label": "Ultimate Marvel vs. Capcom 3", "value": "UMVC3", "videogameId": 10, "hidden": false },
     { "label": "Under Night In-Birth II Sys:Celes", "value": "UNISC", "videogameId": 50203 }
 ];
 const southAmericanCountries = ["Brazil","Argentina","Chile","Colombia","Peru","Uruguay","Paraguay","Ecuador","Bolivia","Venezuela"];
