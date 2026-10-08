@@ -662,14 +662,14 @@
                                 ${charArtInfo ? `<img src="${charArtInfo.file}" alt="${charArtInfo.label}" class="absolute right-2 md:right-8 bottom-0 h-full object-contain object-bottom pointer-events-none select-none">` : ''}
                             </div>
                             
-                            <div class="p-6 -mt-16 relative flex flex-col md:flex-row items-center md:items-end justify-between gap-4">
+                            <div class="p-6 -mt-16 relative flex flex-col items-center md:items-stretch gap-4">
                                 <div class="flex flex-col md:flex-row items-center md:items-end gap-4 text-center md:text-left min-w-0 w-full">
                                     <div class="w-24 h-24 md:w-28 md:h-28 rounded-xl border-4 border-slate-900 bg-slate-800 overflow-hidden shadow-2xl flex-shrink-0">
                                         ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover" alt="${gamerTag}">` : `<div class="w-full h-full flex items-center justify-center text-3xl font-bold text-slate-600">${gamerTag.charAt(0)}</div>`}
                                     </div>
                                     <div class="space-y-1 min-w-0 w-full">
-                                        <h1 class="w-full min-w-0 text-2xl md:text-3xl font-black tracking-wide text-white flex flex-nowrap items-center justify-center md:justify-start gap-3 overflow-hidden whitespace-nowrap">
-                                            <span class="min-w-0 flex-1 truncate whitespace-nowrap">${displayName}</span>
+                                        <h1 class="w-full min-w-0 text-xl sm:text-2xl md:text-3xl font-black tracking-wide text-white flex flex-nowrap items-center justify-center md:justify-start gap-3 whitespace-nowrap">
+                                            <span class="whitespace-nowrap">${displayName}</span>
                                             <div class="inline-flex flex-shrink-0 items-center gap-2.5 text-base font-normal ml-1">
                                                 <a href="${startGgUrl}" target="_blank" rel="noopener noreferrer" title="Perfil Start.gg" class="text-slate-400 hover:text-red-500 transition">
                                                     <i class="fa-solid fa-gamepad"></i>
@@ -699,7 +699,7 @@
                                     </div>
                                 </div>
                                 
-                                <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 flex-shrink-0 w-full md:w-auto">
+                                <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full">
                                     <span class="text-xs text-slate-500">${fonte === 'cache' ? '⚡ em cache' : '🔴 ao vivo'}</span>
                                     <button onclick="abrirSeletorChar()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
                                         <i class="fa-solid fa-images"></i> Personagem
@@ -708,7 +708,7 @@
                                         <i class="fa-solid fa-gamepad"></i> Jogos
                                     </button>
                                     <button id="share-performance-button" onclick="abrirCompartilhamentoDesempenho()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
-                                        <i class="fa-solid fa-share-nodes"></i> Compartilhar(BETA)
+                                        <i class="fa-solid fa-share-nodes"></i> Compartilhar
                                     </button>
                                     <button onclick="atualizarDados()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5">
                                         <i class="fa-solid fa-rotate"></i> Atualizar
