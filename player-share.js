@@ -187,7 +187,7 @@
         ctx.fillStyle = COLORS.red;
         ctx.fillRect(80, 62, 7, 46);
         fitText(ctx, 'FGC HUB', 106, 91, 280, 30, COLORS.text, 900, 25);
-        fitText(ctx, 'PLAYER PERFORMANCE', 108, 122, 390, 16, COLORS.muted, 700, 14);
+        fitText(ctx, 'PLAYER COMPETITIVE PERFORMANCE', 108, 122, 390, 16, COLORS.muted, 700, 14);
         ctx.strokeStyle = 'rgba(148,163,184,0.22)';
         ctx.lineWidth = 2;
         ctx.beginPath();
