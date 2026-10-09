@@ -82,8 +82,25 @@
         ctx.textAlign = 'left';
     }
 
-    function loadImage(url, timeoutMs = 4500) {
-        if (!url || typeof url !== 'string') return Promise.resolve(null);
+    function imageCandidates(url) {
+        const source = String(url || '').trim();
+        if (!source) return [];
+        if (/^(data:|blob:)/i.test(source)) return [source];
+
+        try {
+            const parsed = new URL(source, window.location.href);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return [];
+            if (parsed.origin === window.location.origin) return [parsed.href];
+
+            const proxy = new URL('https://images.weserv.nl/');
+            proxy.searchParams.set('url', parsed.href);
+            return [proxy.href, parsed.href];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function loadImageSource(url, timeoutMs) {
         return new Promise(resolve => {
             const image = new Image();
             let finished = false;
@@ -100,6 +117,14 @@
             image.src = url;
             if (image.complete && image.naturalWidth > 0) finish(image);
         });
+    }
+
+    async function loadImage(url, timeoutMs = 8000) {
+        for (const candidate of imageCandidates(url)) {
+            const image = await loadImageSource(candidate, timeoutMs);
+            if (image) return image;
+        }
+        return null;
     }
 
     function drawImageCover(ctx, image, x, y, width, height, radius = 18) {
@@ -550,7 +575,12 @@
             ...games.map(game => game.logo),
             ...eventImageUrls
         ];
-        const loaded = await Promise.all(urls.map(url => loadImage(url)));
+        const imagePromises = new Map();
+        const loaded = await Promise.all(urls.map(url => {
+            const key = typeof url === 'string' ? url.trim() : '';
+            if (!imagePromises.has(key)) imagePromises.set(key, loadImage(url));
+            return imagePromises.get(key);
+        }));
         const images = {
             avatar: loaded[0],
             mainCharacter: loaded[1],
