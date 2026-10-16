@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bracket Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        /* ── BLOQUEIO DE SELEÇÃO E CÓPIA ── */
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        /* ── RESET E BASE ── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0b0e13;
+            color: #f8fafc;
+            font-family: 'Oswald', sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        /* ── SELETORES DE EVENTO E POOL ── */
+        .bracket-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid #2d2d30;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .bracket-controls select {
+            background: #1a1a1c;
+            border: 1px solid #3b82f6;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            min-width: 180px;
+        }
+        .bracket-controls select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ── CONTEÚDO DA BRACKET ── */
+        #bracket-container {
+            max-width: 100%;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+        #bracket-content {
+            min-height: 400px;
+            position: relative;
+        }
+
+        /* ── SPINNER ── */
+        .loading-wrap {
+            text-align: center;
+            padding: 60px 20px;
+            color: #aaa;
+        }
+        .loading-wrap .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── BRACKET LAYOUT (Start.gg style) ── */
+        .brk-container {
+            --magenta: #ff0055;
+            --led-red: #ff3366;
+            --gold: #ffd700;
+            --blue: #0099ff;
+            font-family: 'Oswald', sans-serif;
+            padding: 20px 30px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            position: relative;
+            z-index: 10;
+            width: max-content;
+            transform-origin: top left;
+        }
+        #losers-area .brk-label { border-left-color: var(--blue); }
+        #losers-area .brk-winner {
+            border-left-color: var(--blue);
+            box-shadow: -5px 0 15px rgba(0, 153, 255, 0.5);
+            background: rgba(0, 153, 255, 0.15);
+        }
+        #losers-area .brk-winner .brk-score { background: var(--blue); }
+        .brk-row {
+            display: flex;
+            gap: 60px;
+            align-items: flex-start;
+            min-height: 200px;
+            flex-wrap: nowrap;
+            position: relative;
+        }
+        .brk-label {
+            color: #ffffff;
+            text-transform: uppercase;
+            font-size: 28px;
+            margin-bottom: 15px;
+            border-left: 8px solid var(--magenta);
+            padding-left: 15px;
+            letter-spacing: 2px;
+        }
+        .brk-column {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            min-width: 420px;
+            position: relative;
+        }
+        .brk-round-title {
+            font-size: 20px;
+            text-transform: uppercase;
+            color: #ffffff;
+            border-bottom: 2px solid #444;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+        .brk-match-card {
+            background: #161a21;
+            width: 420px;
+            border: 2px solid #333;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            position: relative;
+            z-index: 20;
+        }
+        .brk-match-card.on-stream {
+            border: 2px solid var(--gold) !important;
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+        }
+        .brk-match-card.on-stream::after {
+            content: "LIVE ON STREAM";
+            position: absolute;
+            top: -18px;
+            right: -2px;
+            background: var(--gold);
+            color: black;
+            font-size: 11px;
+            font-weight: 900;
+            padding: 2px 10px;
+            border-radius: 2px;
+        }
+        .brk-player {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 65px;
+            padding: 0 0 0 20px;
+            border-bottom: 2px solid #000;
+            position: relative;
+        }
+        .brk-player:last-child {
+            border-bottom: none;
+        }
+        .brk-name-container {
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+        .brk-name {
+            font-size: 24px;
+            text-transform: uppercase;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 280px;
+            color: white;
+        }
+        .brk-score {
+            background: #232933;
+            width: 70px;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            color: #ffffff;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .brk-winner {
+            border-left: 8px solid var(--led-red);
+            background: rgba(255, 51, 102, 0.15);
+            box-shadow: -5px 0 15px rgba(255, 51, 102, 0.5);
+        }
+        .brk-winner .brk-score {
+            background: var(--led-red);
+        }
+        .brk-loser .brk-name {
+            color: #cccccc;
+        }
+        .brk-loser .brk-score {
+            background: #333;
+            color: #ffffff;
+        }
+        .brk-flag-img {
+            width: 35px;
+            height: auto;
+            margin-right: 12px;
+            border-radius: 3px;
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+            flex-shrink: 0;
+        }
+        .brk-connector {
+            position: absolute;
+            background: #333;
+            z-index: 5;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .brk-led-flow {
+            position: absolute;
+            background: var(--led-red);
+            box-shadow: 0 0 10px var(--led-red), 0 0 20px var(--led-red);
+            animation: brk-led-animation 2s linear infinite;
+        }
+        .brk-empty-area {
+            display: none;
+        }
+
+        @keyframes brk-led-animation {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+        @keyframes brk-led-animation-v-down {
+            0% {
+                transform: translateY(-100%);
+            }
+            100% {
+                transform: translateY(100%);
+            }
+        }
+        @keyframes brk-led-animation-v-up {
+            0% {
+                transform: translateY(100%);
+            }
+            100% {
+                transform: translateY(-100%);
+            }
+        }
+
+        /* ── RESPONSIVO ── */
+        @media (max-width: 768px) {
+            .bracket-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .bracket-controls select {
+                width: 100%;
+            }
+            .brk-container {
+                padding: 10px;
+                gap: 20px;
+            }
+            .brk-row {
+                gap: 30px;
+            }
+            .brk-column {
+                min-width: 280px;
+                gap: 20px;
+            }
+            .brk-match-card {
+                width: 280px;
+            }
+            .brk-player {
+                height: 45px;
+                padding-left: 12px;
+            }
+            .brk-name {
+                font-size: 16px;
+                max-width: 150px;
+            }
+            .brk-score {
+                width: 40px;
+                font-size: 20px;
+            }
+            .brk-flag-img {
+                width: 24px;
+                margin-right: 8px;
+            }
+            .brk-label {
+                font-size: 18px;
+            }
+            .brk-round-title {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CONTROLES DE EVENTO E POOL -->
+    <div class="bracket-controls" id="bracketControls" style="display:none;">
+        <select id="bracketEventSelect" onchange="onBracketEventChange()">
+            <option value="">Selecione um evento</option>
+        </select>
+        <select id="bracketPoolSelect" onchange="onBracketPoolChange()">
+            <option value="">Selecione a fase / pool</option>
+        </select>
+    </div>
+
+    <!-- CONTAINER DA BRACKET -->
+    <div id="bracket-container">
+        <div id="bracket-content">
+            <div class="loading-wrap">
+                <div class="spinner"></div>
+                <p style="margin-top:15px;">Carregando bracket...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!--  PROTEÇÕES                                               -->
+    <!-- ============================================================ -->
+    <script>
+        // Bloquear menu de contexto (clique direito)
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        // Bloquear teclas de inspeção e cópia
+        document.addEventListener('keydown', e => {
+            // F12, Ctrl+Shift+I, Ctrl+U, Ctrl+Shift+J, Ctrl+S
+            if (e.key === 'F12' ||
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
+                (e.ctrlKey && e.key === 'U') ||
+                (e.ctrlKey && e.key === 's')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // Bloquear comandos de copiar/recortar (opcional)
+        document.addEventListener('copy', e => e.preventDefault());
+        document.addEventListener('cut', e => e.preventDefault());
+
+        // Impedir arraste de imagens (proteção extra)
+        document.addEventListener('dragstart', e => e.preventDefault());
+
+        console.log('%c🚫 Inspeção bloqueada!', 'font-size:20px; color:red;');
+    </script>
+
+    <!-- ============================================================ -->
+    <!--  CÓDIGO PRINCIPAL DA BRACKET                              -->
+    <!-- ============================================================ -->
+    <script>
+        // ============================================================
+        //  SLUG FIXO – ALTERE AQUI O TORNEIO DESEJADO
+        // ============================================================
+        const SLUG_FIXO = 'tekken-8-fight-night-8-1'; // <-- SUBSTITUA PELO SLUG DO SEU TORNEIO
+
+        // ============================================================
+        //  CHAVE DA API (ofuscada)
+        // ============================================================
+        const _0x4a = '2f99ad10';
+        const _0x4b = '6ead3e77';
+        const _0x4c = '8a071792';
+        const _0x4d = 'a4285dbd';
+        const STARTGG_KEY = _0x4a + _0x4b + _0x4c + _0x4d;
+        const STARTGG_API = 'https://api.start.gg/gql/alpha';
+
+        // ============================================================
+        //  MAPA DE PAÍSES PARA BANDEIRAS
+        // ============================================================
+        const COUNTRY_MAP = {
+            "Brazil": "BR",
+            "United States": "US",
+            "Argentina": "AR",
+            "Chile": "CL",
+            "Colombia": "CO",
+            "Mexico": "MX",
+            "Peru": "PE",
+            "Venezuela": "VE",
+            "Ecuador": "EC",
+            "Bolivia": "BO",
+            "Paraguay": "PY",
+            "Uruguay": "UY",
+            "Portugal": "PT",
+            "Spain": "ES",
+            "France": "FR",
+            "Germany": "DE",
+            "Italy": "IT",
+            "Japan": "JP",
+            "South Korea": "KR",
+            "Canada": "CA",
+            "United Kingdom": "GB",
+            "Australia": "AU",
+            "Netherlands": "NL",
+            "Sweden": "SE"
+        };
+
+        // ============================================================
+        //  FUNÇÃO DE CHAMADA À API
+        // ============================================================
+        async function callStartGG(query, variables = {}) {
+            const res = await fetch(STARTGG_API, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${STARTGG_KEY}`
+                },
+                body: JSON.stringify({ query, variables })
+            });
+            return await res.json();
+        }
+
+        // ============================================================
+        //  FUNÇÕES AUXILIARES
+        // ============================================================
+        function getFlagHTML(entrant) {
+            const country = entrant?.participants?.[0]?.user?.location?.country;
+            if (!country || !COUNTRY_MAP[country]) {
+                return '<div style="width:35px;height:20px;margin-right:12px;background:rgba(255,255,255,0.05);border-radius:3px;flex-shrink:0;"></div>';
+            }
+            return `<img src="https://flagcdn.com/w40/${COUNTRY_MAP[country].toLowerCase()}.png" class="brk-flag-img" alt="${country}">`;
+        }
+
+        // ============================================================
+        //  CARREGAR BRACKET PRINCIPAL
+        // ============================================================
+        async function carregarBracket() {
+            const slug = SLUG_FIXO;
+            const container = document.getElementById('bracket-content');
+            const controls = document.getElementById('bracketControls');
+            const eventSelect = document.getElementById('bracketEventSelect');
+            const poolSelect = document.getElementById('bracketPoolSelect');
+
+            // Limpa controles
+            eventSelect.innerHTML = '<option value="">Selecione um evento</option>';
+            poolSelect.innerHTML = '<option value="">Selecione a fase / pool</option>';
+            controls.style.display = 'none';
+
+            container.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p style="margin-top:15px;">Buscando eventos de <strong>${slug}</strong>...</p></div>`;
+
+            try {
+                // 1. Buscar eventos do torneio
+                const eventQuery = `
+                    query($slug: String!) {
+                        tournament(slug: $slug) {
+                            events {
+                                id
+                                name
+                                slug
+                            }
+                        }
+                    }
+                `;
+                const eventJson = await callStartGG(eventQuery, { slug });
+                const events = eventJson.data?.tournament?.events || [];
+
+                if (events.length === 0) {
+                    container.innerHTML =
+                        `<div style="text-align:center;padding:60px 20px;color:#aaa;">Nenhum evento encontrado para este torneio.</div>`;
+                    return;
+                }
+
+                // 2. Preencher select de eventos
+                events.forEach(ev => {
+                    const opt = document.createElement('option');
+                    opt.value = ev.slug;
+                    opt.textContent = ev.name;
+                    eventSelect.appendChild(opt);
+                });
+                controls.style.display = 'flex';
+                eventSelect.value = events[0].slug;
+
+                // 3. Carregar fases/pools do primeiro evento
+                await carregarFasesEPools(events[0].slug);
+
+            } catch (e) {
+                container.innerHTML =
+                    `<div style="text-align:center;padding:60px 20px;color:#ef4444;">Erro ao carregar: ${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        //  CARREGAR FASES E POOLS DE UM EVENTO
+        // ============================================================
+        async function carregarFasesEPools(eventSlug) {
+            const container = document.getElementById('bracket-content');
+            const poolSelect = document.getElementById('bracketPoolSelect');
+
+            container.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p style="margin-top:15px;">Carregando chaves do evento...</p></div>`;
+            poolSelect.innerHTML = '<option value="">Selecione a fase / pool</option>';
+
+            try {
+                const query = `
+                    query($slug: String!) {
+                        event(slug: $slug) {
+                            phases {
+                                id
+                                name
+                                phaseGroups(query: { perPage: 50 }) {
+                                    nodes {
+                                        id
+                                        displayIdentifier
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `;
+                const json = await callStartGG(query, { slug: eventSlug });
+                const phases = json.data?.event?.phases || [];
+
+                if (phases.length === 0) {
+                    container.innerHTML =
+                        `<div style="text-align:center;padding:60px 20px;color:#aaa;">Nenhuma fase encontrada para este evento.</div>`;
+                    return;
+                }
+
+                let firstPoolId = null;
+                phases.forEach(phase => {
+                    const groups = phase.phaseGroups?.nodes || [];
+                    if (groups.length === 1) {
+                        const g = groups[0];
+                        if (!firstPoolId) firstPoolId = g.id;
+                        const opt = document.createElement('option');
+                        opt.value = g.id;
+                        opt.textContent = phase.name;
+                        poolSelect.appendChild(opt);
+                    } else if (groups.length > 1) {
+                        groups.forEach(g => {
+                            if (!firstPoolId) firstPoolId = g.id;
+                            const opt = document.createElement('option');
+                            opt.value = g.id;
+                            opt.textContent = `${phase.name} - Grupo ${g.displayIdentifier}`;
+                            poolSelect.appendChild(opt);
+                        });
+                    }
+                });
+
+                if (firstPoolId) {
+                    poolSelect.value = firstPoolId;
+                    await carregarBracketPool(firstPoolId);
+                } else {
+                    container.innerHTML =
+                        `<div style="text-align:center;padding:60px 20px;color:#aaa;">Nenhuma bracket disponível.</div>`;
+                }
+            } catch (e) {
+                container.innerHTML =
+                    `<div style="text-align:center;padding:60px 20px;color:#ef4444;">Erro ao carregar fases: ${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        //  CARREGAR UMA BRACKET ESPECÍFICA (POOL)
+        // ============================================================
+        async function carregarBracketPool(phaseGroupId) {
+            const container = document.getElementById('bracket-content');
+            container.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p style="margin-top:15px;">Carregando partidas...</p></div>`;
+
+            try {
+                const query = `
+                    query($id: ID!) {
+                        phaseGroup(id: $id) {
+                            rounds { number bestOf }
+                            sets(page: 1, perPage: 100) {
+                                nodes {
+                                    id
+                                    fullRoundText
+                                    round
+                                    state
+                                    totalGames
+                                    stream { id }
+                                    slots {
+                                        entrant {
+                                            name
+                                            id
+                                            participants {
+                                                user { location { country } }
+                                            }
+                                        }
+                                        standing {
+                                            stats { score { value } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `;
+                const json = await callStartGG(query, { id: phaseGroupId });
+                const sets = json.data?.phaseGroup?.sets?.nodes || [];
+                const roundCfg = json.data?.phaseGroup?.rounds || [];
+                // só config da rodada (totalGames é genérico e dava BO5 errado)
+                const getBestOf = set => {
+                    const r = roundCfg.find(x => Number(x.number) === Number(set.round));
+                    return r?.bestOf || null;
+                };
+                // debug: abrir index.html?debug
+                if (new URLSearchParams(location.search).has('debug')) {
+                    const d = document.createElement('pre');
+                    d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow:auto;background:#000;color:#0f0;font-size:12px;padding:8px;z-index:9999;user-select:text';
+                    d.textContent = 'rounds: ' + JSON.stringify(roundCfg) +
+                        '\nsets: ' + JSON.stringify(sets.map(s => ({ r: s.round, t: s.fullRoundText, totalGames: s.totalGames })));
+                    document.body.appendChild(d);
+                }
+
+                if (sets.length === 0) {
+                    container.innerHTML =
+                        `<div style="text-align:center;padding:60px 20px;color:#aaa;">Nenhuma partida encontrada nesta chave.</div>`;
+                    return;
+                }
+
+                // Agrupar por rodada
+                const rounds = {};
+                sets.forEach(set => {
+                    const key = `${set.round}_${set.fullRoundText}`;
+                    if (!rounds[key]) {
+                        rounds[key] = { round: set.round, title: set.fullRoundText, bo: null, sets: [] };
+                    }
+                    if (!rounds[key].bo) rounds[key].bo = getBestOf(set);
+                    rounds[key].sets.push(set);
+                });
+
+                // Ordenar rodadas (winners primeiro, depois losers)
+                const sortedKeys = Object.keys(rounds).sort((a, b) => {
+                    const rA = rounds[a],
+                        rB = rounds[b];
+                    const isResetA = rA.title.toLowerCase().includes("reset");
+                    const isResetB = rB.title.toLowerCase().includes("reset");
+                    if (isResetA && !isResetB) return 1;
+                    if (!isResetA && isResetB) return -1;
+                    if (rA.round > 0 && rB.round > 0) return rA.round - rB.round;
+                    if (rA.round < 0 && rB.round < 0) return rB.round - rA.round;
+                    return rA.round - rB.round;
+                });
+
+                // Montar HTML
+                let html = `
+                    <div class="brk-container">
+                        <div id="winners-area">
+                            <div class="brk-label">Winners Bracket</div>
+                            <div id="winners-root" class="brk-row"></div>
+                        </div>
+                        <div id="losers-area" style="margin-top:40px;">
+                            <div class="brk-label">Losers Bracket</div>
+                            <div id="losers-root" class="brk-row"></div>
+                        </div>
+                        <div id="connectors-container" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;"></div>
+                    </div>
+                `;
+                container.innerHTML = html;
+
+                const wRoot = document.getElementById('winners-root');
+                const lRoot = document.getElementById('losers-root');
+                const setMap = new Map();
+                let hasWinners = false,
+                    hasLosers = false;
+
+                sortedKeys.forEach(key => {
+                    const rData = rounds[key];
+                    const col = document.createElement('div');
+                    col.className = 'brk-column';
+                    col.innerHTML = `<div class="brk-round-title">${rData.title}${rData.bo ? ` (BO${rData.bo})` : ''}</div>`;
+
+                    rData.sets.sort((a, b) => a.id - b.id);
+                    rData.sets.forEach(set => {
+                        const p1 = set.slots[0];
+                        const p2 = set.slots[1];
+                        const s1 = p1?.standing?.stats?.score?.value ?? 0;
+                        const s2 = p2?.standing?.stats?.score?.value ?? 0;
+                        const done = set.state === 3;
+                        const onStream = set.state === 2 && set.stream !== null;
+
+                        const card = document.createElement('div');
+                        card.id = `set-${set.id}`;
+                        card.className = `brk-match-card ${onStream ? 'on-stream' : ''}`;
+
+                        card.innerHTML = `
+                            <div class="brk-player ${done && s1 > s2 ? 'brk-winner' : (done && s2 > s1 ? 'brk-loser' : '')}">
+                                <div class="brk-name-container">
+                                    ${getFlagHTML(p1?.entrant)}
+                                    <div class="brk-name">${p1?.entrant?.name || 'TBD'}</div>
+                                </div>
+                                <div class="brk-score">${done ? (s1 < 0 ? 'DQ' : s1) : '-'}</div>
+                            </div>
+                            <div class="brk-player ${done && s2 > s1 ? 'brk-winner' : (done && s1 > s2 ? 'brk-loser' : '')}">
+                                <div class="brk-name-container">
+                                    ${getFlagHTML(p2?.entrant)}
+                                    <div class="brk-name">${p2?.entrant?.name || 'TBD'}</div>
+                                </div>
+                                <div class="brk-score">${done ? (s2 < 0 ? 'DQ' : s2) : '-'}</div>
+                            </div>
+                        `;
+                        col.appendChild(card);
+                        setMap.set(set.id, card);
+                    });
+
+                    if (rData.round > 0) {
+                        wRoot.appendChild(col);
+                        hasWinners = true;
+                    } else {
+                        lRoot.appendChild(col);
+                        hasLosers = true;
+                    }
+                });
+
+                document.getElementById('winners-area').classList.toggle('brk-empty-area', !hasWinners);
+                document.getElementById('losers-area').classList.toggle('brk-empty-area', !hasLosers);
+
+                // Desenhar conectores após renderização
+                setTimeout(() => {
+                    drawConnectors(sets, setMap); // desenha em escala 1
+                    fitBracket();                 // depois ajusta à tela
+                }, 250);
+
+            } catch (e) {
+                container.innerHTML =
+                    `<div style="text-align:center;padding:60px 20px;color:#ef4444;">Erro ao carregar partidas: ${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        //  AJUSTAR BRACKET À TELA (sem scroll)
+        // ============================================================
+        function fitBracket() {
+            const wrap = document.getElementById('bracket-content');
+            const brk = wrap?.querySelector('.brk-container');
+            if (!brk) return;
+
+            // ajuste à tela SÓ na fase TOP 8; demais fases = scroll normal
+            const poolSel = document.getElementById('bracketPoolSelect');
+            const poolName = poolSel?.options[poolSel.selectedIndex]?.textContent || '';
+            const isTop8 = /top\s*8\b/i.test(poolName);
+            const html = document.documentElement, cont = document.getElementById('bracket-container');
+            // sempre sem scroll lateral; TOP 8 = sem scroll algum; demais = só vertical
+            cont.style.overflowX = 'hidden'; cont.style.padding = '0';
+            if (isTop8) {
+                html.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+            } else {
+                html.style.overflowX = 'hidden'; html.style.overflowY = 'auto';
+                document.body.style.overflowX = 'hidden'; document.body.style.overflowY = 'auto';
+            }
+            brk.style.transform = 'none';
+            const w = brk.offsetWidth, h = brk.offsetHeight;
+            const top = wrap.getBoundingClientRect().top + window.scrollY;
+            const availW = html.clientWidth - 40;
+            const availH = window.innerHeight - top - 20;
+            const s = isTop8 ? Math.min(1, availW / w, availH / h) : Math.min(1, availW / w);
+            brk.style.transform = `scale(${s})`;
+            brk.style.marginLeft = `${Math.max(0, (availW - w * s) / 2)}px`;
+            wrap.style.height = `${h * s}px`;
+            wrap.style.minHeight = '0';
+        }
+        window.addEventListener('resize', fitBracket);
+
+        // ============================================================
+        //  DESENHAR CONECTORES ENTRE PARTIDAS
+        // ============================================================
+        function drawConnectors(sets, setMap) {
+            const container = document.getElementById('connectors-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const handled = new Set();
+
+            sets.forEach(set => {
+                if (set.state !== 3) return;
+                const p1Score = set.slots[0]?.standing?.stats?.score?.value ?? 0;
+                const p2Score = set.slots[1]?.standing?.stats?.score?.value ?? 0;
+                const winnerEntrant = p1Score > p2Score ? set.slots[0]?.entrant : set.slots[1]?.entrant;
+                if (!winnerEntrant) return;
+
+                const targetSet = sets.find(s =>
+                    s.round === (set.round > 0 ? set.round + 1 : set.round - 1) &&
+                    s.slots.some(slot => slot.entrant?.id === winnerEntrant.id)
+                );
+                if (targetSet && setMap.has(set.id) && setMap.has(targetSet.id)) {
+                    const key = `${set.id}_${targetSet.id}`;
+                    if (handled.has(key)) return;
+                    createConnector(setMap.get(set.id), setMap.get(targetSet.id), container);
+                    handled.add(key);
+                }
+            });
+        }
+
+        function createConnector(startNode, endNode, container) {
+            const startRect = startNode.getBoundingClientRect();
+            const endRect = endNode.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const startX = startRect.right - containerRect.left;
+            const startY = startRect.top - containerRect.top + (startRect.height / 2);
+            const endX = endRect.left - containerRect.left;
+            const endY = endRect.top - containerRect.top + (endRect.height / 2);
+
+            const midX = startX + (endX - startX) / 2;
+
+            // Segmento horizontal da esquerda para o meio
+            createSegment(startX, startY, midX - startX, 4, container, 'none');
+
+            // Segmento vertical (se necessário)
+            if (Math.abs(endY - startY) > 5) {
+                const vTop = Math.min(startY, endY);
+                const vHeight = Math.abs(endY - startY);
+                const direction = endY > startY ? 'down' : 'up';
+                createSegment(midX - 2, vTop, 4, vHeight, container, direction);
+            }
+
+            // Segmento horizontal do meio para a direita
+            createSegment(midX, endY, endX - midX, 4, container, 'none');
+        }
+
+        function createSegment(x, y, w, h, container, direction) {
+            const seg = document.createElement('div');
+            seg.className = 'brk-connector';
+            seg.style.left = `${x}px`;
+            seg.style.top = `${y - (direction !== 'none' ? 0 : 2)}px`;
+            seg.style.width = `${w}px`;
+            seg.style.height = `${h}px`;
+
+            const flow = document.createElement('div');
+            flow.className = 'brk-led-flow';
+            flow.style.width = '100%';
+            flow.style.height = '100%';
+            if (direction === 'down') flow.style.animationName = 'brk-led-animation-v-down';
+            else if (direction === 'up') flow.style.animationName = 'brk-led-animation-v-up';
+            else flow.style.animationName = 'brk-led-animation';
+
+            seg.appendChild(flow);
+            container.appendChild(seg);
+        }
+
+        // ============================================================
+        //  EVENTOS DOS SELECTS
+        // ============================================================
+        async function onBracketEventChange() {
+            const select = document.getElementById('bracketEventSelect');
+            const slug = select.value;
+            if (!slug) return;
+            await carregarFasesEPools(slug);
+        }
+
+        async function onBracketPoolChange() {
+            const select = document.getElementById('bracketPoolSelect');
+            const id = select.value;
+            if (!id) return;
+            await carregarBracketPool(id);
+        }
+
+        // ============================================================
+        //  INICIALIZAR COM O SLUG FIXO
+        // ============================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            carregarBracket();
+        });
+    </script>
+</body>
+</html>
