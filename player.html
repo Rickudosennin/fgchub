@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perfil do Player | FGC HUB</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="vendor/chartjs/chart.umd.js"></script>
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="buscar-style.css">
 </head>
@@ -45,8 +45,8 @@
     </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="vendor/firebase/firebase-app-compat.js"></script>
+    <script src="vendor/firebase/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js?v=character-history-scan-20261003-2"></script>
     <script src="players.js?v=ewgf-rank-20261013-1"></script>
@@ -1335,10 +1335,18 @@
                 status.classList.toggle('text-slate-400', !isError);
             }
 
+            // Configurado = tem proxy (apiBaseUrl diferente da API direta) ou, legado, um token no client.
+            function ewgfConfigurado() {
+                const cfg = window.FGC_EWGF_CONFIG || {};
+                const base = String(cfg.apiBaseUrl || '').replace(/\/$/, '');
+                const usaApiDireta = !base || /^https:\/\/api\.ewgf\.gg$/i.test(base);
+                return !usaApiDireta || Boolean(String(cfg.apiToken || '').trim());
+            }
+
             async function buscarRankEwgf(tekkenId, silencioso = true) {
                 document.getElementById('ewgf-rank-link')?.classList.add('hidden');
-                if (!String(window.FGC_EWGF_CONFIG?.apiToken || '').trim()) {
-                    if (!silencioso) definirStatusEwgfRank('Preencha a chave EWGF em ewgf-config.js para carregar o rank.', true);
+                if (!ewgfConfigurado()) {
+                    if (!silencioso) definirStatusEwgfRank('Configure o proxy EWGF em ewgf-config.js para carregar o rank.', true);
                     return false;
                 }
 
@@ -1384,7 +1392,7 @@
                         invalid_api_key_format: 'A chave EWGF está em formato inválido.',
                         invalid_api_key: 'A chave EWGF configurada em ewgf-config.js é inválida.',
                         api_key_revoked: 'A chave EWGF foi revogada.',
-                        token_not_configured: 'Preencha a chave EWGF em ewgf-config.js.',
+                        token_not_configured: 'Configure o proxy EWGF em ewgf-config.js.',
                         request_timeout: 'A consulta à EWGF excedeu o tempo limite.',
                         network_or_cors_error: 'Não foi possível acessar a API EWGF pela rede ou CORS.'
                     };
@@ -1400,8 +1408,8 @@
                 input.value = ewgfTekkenIdProfile;
                 definirStatusEwgfRank('');
                 modal.classList.remove('hidden');
-                if (!window.FGC_EWGF_CONFIG?.apiToken) {
-                    definirStatusEwgfRank('O ID pode ser salvo agora; preencha a chave EWGF em ewgf-config.js para buscar o rank.', true);
+                if (!ewgfConfigurado()) {
+                    definirStatusEwgfRank('O ID pode ser salvo agora; configure o proxy EWGF em ewgf-config.js para buscar o rank.', true);
                 }
                 input.focus();
             };

@@ -1,0 +1,2 @@
+# Chave web do Firebase: pública por design (protegida por restrição de referrer + regras do Firestore).
+firebase-config.js:gcp-api-key:11

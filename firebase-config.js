@@ -3,7 +3,11 @@
 // > Seus apps > SDK setup and configuration (ícone "</>").
 // Esses valores NÃO são segredos — são feitos para ficar públicos no client.
 // Quem protege os dados são as regras do Firestore (firestore.rules).
+// Proteção da chave: Google Cloud Console -> APIs e serviços -> Credenciais -> restringir a chave
+// por "Referenciadores HTTP" (fgchub.com.br/*) e só às APIs usadas pelo Firebase.
 const firebaseConfig = {
+    // nosemgrep: rules.generic.secrets.security.detected-generic-api-key.detected-generic-api-key
+    // gitleaks:allow
     apiKey: "AIzaSyBRaFTwZyoCS85LHn4n6BWRiDRp14HtBNw",
     authDomain: "fgcgub.firebaseapp.com",
     projectId: "fgcgub",

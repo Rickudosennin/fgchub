@@ -1,3 +1,10 @@
+// ========== ESCAPE DE HTML (dados vindos da API do Start.gg) ==========
+function _escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+
 // ========== BLOQUEIO SIMPLES DE INSPEÇÃO ==========
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('keydown', e => {
@@ -116,7 +123,7 @@ async function abrirRanking(ligaSlug, ligaLabel, rankingUrl) {
         const maxPts = Math.max(...nodes.map(n => n.totalPoints || 0)) || 1; let html = '';
         nodes.forEach(node => {
             const placement = node.placement, name = node.entrant?.name || '—', pts = node.totalPoints ?? 0, country = node.entrant?.participants?.[0]?.user?.location?.country, code = country && COUNTRY_MAP[country] ? COUNTRY_MAP[country].toLowerCase() : null;
-            const flagHTML = code ? `<img src="https://flagcdn.com/w40/${code}.png" class="ranking-flag" alt="${country}">` : `<div class="ranking-flag-placeholder"></div>`;
+            const flagHTML = code ? `<img src="https://flagcdn.com/w40/${code}.png" class="ranking-flag" alt="${_escapeHtml(country)}">` : `<div class="ranking-flag-placeholder"></div>`;
             const rankClass = placement === 1 ? 'rank-1' : placement === 2 ? 'rank-2' : placement === 3 ? 'rank-3' : '', numClass = placement === 1 ? 'rank-1' : placement === 2 ? 'rank-2' : placement === 3 ? 'rank-3' : 'rank-other', barWidth = Math.round((pts / maxPts) * 100), medal = placement === 1 ? '🥇' : placement === 2 ? '🥈' : placement === 3 ? '🥉' : '';
             html += `<div class="ranking-player-card ${rankClass}"><div class="rank-number ${numClass}">${medal || '#' + placement}</div><div class="ranking-player-info"><div class="ranking-player-name">${name}</div><div class="ranking-player-pts">${pts.toLocaleString('pt-BR')} pts</div></div>${flagHTML}<div class="ranking-bar-wrap"><div class="ranking-bar-fill ${rankClass ? '' : 'rank-other-bar'}" style="width:${barWidth}%;${rankClass ? '' : 'background:#7c3aed;'}"></div></div></div>`;
         });
@@ -176,7 +183,7 @@ async function _carregarPaginaAttendees() {
             const idx = offset + i;
             const country = p.user?.location?.country, countryCode = COUNTRY_MAP[country] || null;
             const flagHTML = countryCode
-                ? `<img src="https://flagcdn.com/w40/${countryCode.toLowerCase()}.png" class="attendee-flag" alt="${country}">`
+                ? `<img src="https://flagcdn.com/w40/${countryCode.toLowerCase()}.png" class="attendee-flag" alt="${_escapeHtml(country)}">`
                 : '<div style="width:28px;height:20px;background:rgba(255,255,255,0.05);border-radius:3px;"></div>';
             const safeGamerTag = (p.gamerTag || 'Sem nome').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const playerId = p.player?.id || '';
@@ -197,17 +204,17 @@ async function _carregarPaginaAttendees() {
                 } catch (e) {}
             }
 
-            const displayName = prefix ? `${prefix} | ${p.gamerTag}` : p.gamerTag;
+            const displayName = _escapeHtml(prefix ? `${prefix} | ${p.gamerTag}` : p.gamerTag);
 
             // ========== LINK CORRIGIDO COM PREFIXO ==========
             html += `
                 <div class="attendee-item">
                     <span class="attendee-number">#${idx + 1}</span>
                     ${flagHTML}
-                    <a href="player.html?id=${playerId}&tag=${encodeURIComponent(p.gamerTag)}&prefix=${encodeURIComponent(prefix)}" class="attendee-name">
+                    <a href="player.html?id=${encodeURIComponent(playerId)}&tag=${encodeURIComponent(p.gamerTag)}&prefix=${encodeURIComponent(prefix)}" class="attendee-name">
                         ${displayName}
                     </a>
-                    ${p.prefix ? `<span style="color:#aaa;font-size:11px;">${p.prefix}</span>` : ''}
+                    ${p.prefix ? `<span style="color:#aaa;font-size:11px;">${_escapeHtml(p.prefix)}</span>` : ''}
                 </div>
                 <div id="history-${idx}" style="display:none;"></div>
             `;
@@ -850,7 +857,7 @@ async function pesquisar() {
             const eventoAtual = (t.events && t.events.length > 0) ? t.events.reduce((a, b) => Math.abs((a.startAt||t.startAt) - dataEventoProximo) <= Math.abs((b.startAt||t.startAt) - dataEventoProximo) ? a : b) : null;
             const regCloseEfetivo = (eventoAtual && eventoAtual.startAt && t.registrationClosesAt) ? Math.min(t.registrationClosesAt, eventoAtual.startAt) : t.registrationClosesAt;
             const timerId = `timer_${i}_${Date.now()}`, dEnc = regCloseEfetivo ? new Date(regCloseEfetivo*1000) : null, inscritos = t.numAttendees ?? 0;
-            const rawSlug = (t.owner?.slug||'').replace('user/',''), toName = t.owner?.player?.gamerTag || (!/^[0-9A-F]{6,}$/i.test(rawSlug) && rawSlug ? rawSlug : (t.owner?.name || 'Desconhecido'));
+            const rawSlug = (t.owner?.slug||'').replace('user/',''), toName = t.owner?.player?.gamerTag || (!(rawSlug.length >= 6 && /^[0-9a-f]+$/i.test(rawSlug)) && rawSlug ? rawSlug : (t.owner?.name || 'Desconhecido'));
             const banner = t.images?.find(img => img.type==='banner')?.url || t.images?.[0]?.url || '';
             let streamHTML = ""; const isLiveNow = t.streamQueue && t.streamQueue.some(q => q.sets && q.sets.some(s => s.state===2 || s.state==='ACTIVE'));
             if (t.streams && t.streams.length > 0) { const hasTwitch = t.streams.some(s => s.streamSource==='TWITCH'), hasYT = t.streams.some(s => s.streamSource==='YOUTUBE'); streamHTML = `<div style="position:absolute;bottom:8px;right:10px;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.7);padding:3px 8px;border-radius:4px;border:1px solid ${isLiveNow?'#dc2626':'rgba(255,255,255,0.1)'}">${isLiveNow?'<span class="animate-pulse flex h-2 w-2 rounded-full bg-red-500 mr-1"></span><span class="text-[9px] font-black text-red-500 uppercase mr-2 tracking-tighter">LIVE</span>':'<span class="text-[9px] font-black text-white uppercase tracking-tighter">Stream:</span>'}${hasTwitch?'<i class="fa-brands fa-twitch text-[#a970ff] text-xs"></i>':''}${hasYT?'<i class="fa-brands fa-youtube text-[#ff0000] text-xs"></i>':''}</div>`; }

@@ -111,7 +111,8 @@
                 resolve(value);
             };
             const timer = setTimeout(() => finish(null), timeoutMs);
-            if (!/^(data:|blob:)/i.test(url)) image.crossOrigin = 'anonymous';
+            const urlLower = String(url).toLowerCase();
+            if (!urlLower.startsWith('data:') && !urlLower.startsWith('blob:')) image.crossOrigin = 'anonymous';
             image.onload = () => finish(image);
             image.onerror = () => finish(null);
             image.src = url;
