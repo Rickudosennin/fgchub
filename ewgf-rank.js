@@ -204,7 +204,12 @@
 
         const token = String(window.FGC_EWGF_CONFIG?.apiToken || '').trim();
         const baseUrl = String(window.FGC_EWGF_CONFIG?.apiBaseUrl || 'https://api.ewgf.gg').replace(/\/$/, '');
-        if (!token) throw Object.assign(new Error('token_not_configured'), { code: 'token_not_configured' });
+        // Sem token no client: só funciona via proxy (que injeta o Authorization no servidor).
+        const usaApiDireta = /^https:\/\/api\.ewgf\.gg$/i.test(baseUrl);
+        if (!token && usaApiDireta) throw Object.assign(new Error('token_not_configured'), { code: 'token_not_configured' });
+
+        const headers = { 'Accept': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 12000);
@@ -212,10 +217,7 @@
         try {
             response = await fetch(`${baseUrl}/external/battles/${encodeURIComponent(id)}`, {
                 method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                },
+                headers,
                 signal: controller.signal
             });
         } catch (error) {
