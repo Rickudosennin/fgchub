@@ -4,9 +4,11 @@
    - Para reativar um tema sazonal: adicionar em THEMES + carregar o .js dele. */
 (function () {
   var KEY = 'fgchub-theme';
+  var PADRAO = 'broadcast'; // tema de quem ainda não escolheu nada
   var THEMES = [
-    { id: 'original', nome: 'Padrão' },
-    { id: 'cromo', nome: 'Cromo' }
+    { id: 'original', nome: 'Red Edition' },
+    { id: 'cromo', nome: 'Cromo' },
+    { id: 'broadcast', nome: 'Broadcast' }
   ];
   var root = document.documentElement;
 
@@ -26,10 +28,30 @@
     try { localStorage.setItem(KEY, id); } catch (e) {}
   }
 
+  // fontes do tema Broadcast: só baixam quando ele está ativo
+  function carregarFontes(id) {
+    if (id !== 'broadcast' || document.getElementById('fgc-theme-fonts')) return;
+    var l = document.createElement('link');
+    l.id = 'fgc-theme-fonts';
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Oswald:wght@500;600;700&display=swap';
+    document.head.appendChild(l);
+  }
+
+  // subtítulo da home: texto próprio no Broadcast; volta ao original nos outros temas
+  function subtitulo(id) {
+    var p = document.querySelector('header > p');
+    if (!p) return;
+    if (!p.hasAttribute('data-orig')) p.setAttribute('data-orig', p.textContent);
+    p.textContent = id === 'broadcast' ? 'Torneios de Fighting Games · Global' : p.getAttribute('data-orig');
+  }
+
   function pintar(id) {
     if (!valido(id)) id = 'original';
     if (id === 'original') root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', id);
+    carregarFontes(id);
+    subtitulo(id);
     var btns = document.querySelectorAll('.fgc-theme-toggle button');
     for (var i = 0; i < btns.length; i++) {
       btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-theme-id') === id ? 'true' : 'false');
@@ -44,9 +66,10 @@
   }
 
   // aplica já no <head> (evita flash)
-  var atual = pintar(ler() || 'original');
+  var atual = pintar(ler() || PADRAO);
 
   function montar() {
+    subtitulo(atual);
     if (document.querySelector('.fgc-theme-toggle')) return;
 
     var wrap = document.createElement('div');
@@ -82,7 +105,7 @@
 
   // mantém outras abas abertas em sincronia
   window.addEventListener('storage', function (e) {
-    if (e.key === KEY) pintar(e.newValue || 'original');
+    if (e.key === KEY) pintar(e.newValue || PADRAO);
   });
 
   window.FGCTheme = { escolher: escolher, temas: THEMES };
