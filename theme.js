@@ -14,6 +14,7 @@
   // Tema sazonal Evo Brazil 2027
   if (Date.now() < new Date('2027-04-01T00:00:00-03:00').getTime()) {
     THEMES.push({ id: 'evo', nome: 'Evo 2027' });
+    PADRAO = 'evo'; // padrão de quem ainda não escolheu; após a data, volta ao Broadcast
   }
   
   var root = document.documentElement;
