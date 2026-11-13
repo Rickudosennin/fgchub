@@ -56,6 +56,7 @@ function extrairSlugTorneio(url) { if (!url) return null; const match = url.matc
 
 const LIGAS_MONITORADAS = [
     { slug: 'kombat-ranking-mk1', label: 'Kombat Ranking MK1', rankingUrl: 'https://www.start.gg/league/kombat-ranking-mk1/standings' },
+    { slug: 'venom-clash-ranking', label: 'Venom Clash Ranking', rankingUrl: 'https://www.start.gg/league/venom-clash-ranking/standings' },
     { slug: 'cipher-x-tournament-1', label: 'Cipher-X Tournament MK1', rankingUrl: 'https://www.start.gg/league/cipher-x-tournament-1/standings' },
     { slug: 'ranking-cipher-x-tournament-street-fighter-66', label: 'Cipher-X Tournament SF6', rankingUrl: 'https://www.start.gg/league/ranking-cipher-x-tournament-street-fighter-66/standings' },
     { slug: 'arena-outworld-edi-o-6-2', label: 'Arena Outworld Edição 6', rankingUrl: 'https://www.start.gg/league/arena-outworld-edi-o-6-2/standings' },
