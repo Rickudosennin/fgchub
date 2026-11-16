@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranking BR | FGC HUB</title>
+    <meta name="description" content="Ranking brasileiro de Fighting Games, atualizado automaticamente a cada 6 horas.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <!-- Temas -->
+    <link rel="stylesheet" href="themes.css">
+    <link rel="stylesheet" href="theme-evo-pages.css?v=1">
+    <script src="theme.js"></script>
+    <style>
+        .rk-pill { border:1px solid #334155; color:#94a3b8; border-radius:9999px; padding:6px 16px; font-size:13px; font-weight:700; transition:.2s; background:rgba(0,0,0,.25); }
+        .rk-pill:hover { color:#f8fafc; border-color:#dc2626; }
+        .rk-pill[aria-pressed="true"] { color:#fff; border-color:#dc2626; background:rgba(220,38,38,.18); }
+        .rk-seg { display:inline-flex; border:1px solid #334155; border-radius:10px; overflow:hidden; }
+        .rk-seg button { padding:9px 22px; font-size:13px; font-weight:800; letter-spacing:.5px; color:#94a3b8; background:rgba(0,0,0,.3); }
+        .rk-seg button[aria-pressed="true"][data-m="online"] { background:#2ea8ff; color:#04121f; }
+        .rk-seg button[aria-pressed="true"][data-m="offline"] { background:#dc2626; color:#fff; }
+        .rk-seg button[aria-pressed="true"][data-m="ambos"] { background:#e2e8f0; color:#0f172a; }
+        .rk-table { width:100%; border-collapse:collapse; }
+        .rk-table th, .rk-table td { padding:9px 8px; text-align:left; border-bottom:1px solid rgba(148,163,184,.15); }
+        .rk-table th { font-size:11px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+        .rk-table .n { text-align:right; font-variant-numeric:tabular-nums; }
+        .rk-table tr.p { cursor:pointer; }
+        .rk-table tr.p:hover { background:rgba(148,163,184,.08); }
+        .rk-table tr.d td { background:rgba(0,0,0,.3); font-size:12px; color:#94a3b8; line-height:1.7; }
+        .rk-top1 { color:#ffd54a; font-weight:800; } .rk-top2 { color:#d0d6de; font-weight:800; } .rk-top3 { color:#d9944a; font-weight:800; }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+    <div class="max-w-3xl mx-auto">
+        <div class="flex items-center justify-between gap-3 mb-6">
+            <a href="index.html" class="text-slate-400 hover:text-red-500 text-sm">&larr; Voltar para o FGC HUB</a>
+            <span id="theme-switcher"></span>
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-black text-white uppercase italic">Ranking <span class="text-red-600">BR</span></h1>
+            <p class="text-slate-400 text-sm mt-2" id="subtitulo">Carregando…</p>
+        </div>
+
+        <div id="jogos" class="flex flex-wrap justify-center gap-2 mb-6" role="group" aria-label="Jogo"></div>
+
+        <section class="glass-card p-4 md:p-5 rounded-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div class="rk-seg" id="modos" role="group" aria-label="Formato">
+                    <button type="button" data-m="online" aria-pressed="true">ONLINE</button>
+                    <button type="button" data-m="offline" aria-pressed="false">OFFLINE</button>
+                    <button type="button" data-m="ambos" aria-pressed="false">AMBOS</button>
+                </div>
+                <div class="text-xs text-slate-500">1º 16 · 2º 12 · 3º 10 · 4º 8 · 5-7 6 · 8-12 4 · 13-16 2</div>
+            </div>
+            <div id="contagem" class="text-xs text-slate-500 mb-2"></div>
+            <div id="erro" class="hidden text-center text-red-400 text-sm py-6"></div>
+            <div class="overflow-x-auto">
+                <table class="rk-table">
+                    <thead><tr>
+                        <th style="width:44px">#</th><th>Player</th>
+                        <th class="n">Pontos</th><th class="n">Eventos</th><th class="n">Melhor</th>
+                    </tr></thead>
+                    <tbody id="corpo"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+<script>
+(function () {
+    'use strict';
+    const BASE = 'data/ranking/';
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const qs = new URLSearchParams(location.search);
+
+    let games = [];
+    let slug = null;
+    let mode = ['online', 'offline', 'ambos'].includes(qs.get('modo')) ? qs.get('modo') : 'online';
+    const cache = {};
+
+    async function getJson(file) {
+        const r = await fetch(BASE + file, { cache: 'no-cache' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }
+
+    function setUrl() {
+        const u = new URL(location.href);
+        u.searchParams.set('jogo', slug);
+        u.searchParams.set('modo', mode);
+        history.replaceState(null, '', u);
+    }
+
+    function renderGames() {
+        const box = $('jogos');
+        box.innerHTML = '';
+        games.forEach(g => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'rk-pill';
+            b.textContent = g.name;
+            b.setAttribute('aria-pressed', g.slug === slug ? 'true' : 'false');
+            b.onclick = () => { slug = g.slug; renderGames(); load(); };
+            box.appendChild(b);
+        });
+        box.style.display = games.length > 1 ? '' : 'none';
+    }
+
+    function renderModes() {
+        document.querySelectorAll('#modos button').forEach(b =>
+            b.setAttribute('aria-pressed', b.dataset.m === mode ? 'true' : 'false'));
+    }
+
+    async function load() {
+        setUrl();
+        $('erro').classList.add('hidden');
+        try {
+            if (!cache[slug]) cache[slug] = await getJson(slug + '.json');
+            render();
+        } catch (e) {
+            $('corpo').innerHTML = '';
+            $('contagem').textContent = '';
+            $('erro').textContent = 'Ranking ainda não disponível para este jogo.';
+            $('erro').classList.remove('hidden');
+        }
+    }
+
+    function render() {
+        const d = cache[slug];
+        const m = d.modes[mode];
+        const upd = new Date(d.updatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        const from = new Date(d.from + 'T12:00:00').toLocaleDateString('pt-BR');
+        $('subtitulo').textContent = `${d.name} · desde ${from} · atualizado em ${upd}`;
+        $('contagem').textContent = `${m.events} eventos (mín. ${d.minEntrants} inscritos) · ${m.players.length} players pontuando`;
+        const body = $('corpo');
+        body.innerHTML = '';
+        m.players.forEach(o => {
+            const tr = document.createElement('tr');
+            tr.className = 'p';
+            const cls = o.pos === 1 ? 'rk-top1' : o.pos === 2 ? 'rk-top2' : o.pos === 3 ? 'rk-top3' : 'text-slate-500';
+            tr.innerHTML = `<td class="${cls}">${o.pos}</td><td class="text-white">${esc(o.tag)}</td>` +
+                `<td class="n"><b>${o.pts}</b></td><td class="n">${o.n}</td><td class="n">${o.best}º</td>`;
+            let open = null;
+            tr.onclick = () => {
+                if (open) { open.remove(); open = null; return; }
+                open = document.createElement('tr');
+                open.className = 'd';
+                const lines = o.list.map(x =>
+                    `${new Date(x.d * 1000).toLocaleDateString('pt-BR')} · ${esc(x.n)} · ${x.p}º de ${x.e} · +${x.pts}`
+                ).join('<br>');
+                open.innerHTML = `<td></td><td colspan="4">${lines}</td>`;
+                tr.after(open);
+            };
+            body.appendChild(tr);
+        });
+    }
+
+    $('modos').addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        mode = b.dataset.m;
+        renderModes();
+        setUrl();
+        if (cache[slug]) render();
+    });
+
+    (async function init() {
+        renderModes();
+        try {
+            games = (await getJson('index.json')).games || [];
+        } catch (e) { games = []; }
+        if (!games.length) {
+            $('subtitulo').textContent = 'Nenhum ranking disponível ainda.';
+            return;
+        }
+        slug = games.some(g => g.slug === qs.get('jogo')) ? qs.get('jogo') : games[0].slug;
+        renderGames();
+        load();
+    })();
+})();
+</script>
+</body>
+</html>
