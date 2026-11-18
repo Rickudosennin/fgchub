@@ -76,11 +76,11 @@ async function collect(game, cache) {
   const stats = { torneios: 0, eventos: 0, minEntrants: 0, jaNoCache: 0, emAndamento: 0, online: 0 };
   const STALE = 2 * 24 * 3600; // evento não finalizado e recente -> reconsulta na próxima execução
   const seen = new Set();
-  async function scan(withCountry, accept) {
+  async function scan(withCountry, accept, afterTs = after) {
     let page = 1, total = 1;
     while (page <= total) {
       console.log(`[${game.slug}] listando torneios${withCountry ? '' : ' (online, sem filtro de país)'} ${page}/${total}`);
-      const d = await gql(Q_TOURN(game.gameId, withCountry), { page, after, before });
+      const d = await gql(Q_TOURN(game.gameId, withCountry), { page, after: afterTs, before });
       total = d.tournaments.pageInfo.totalPages || 1;
       for (const t of d.tournaments.nodes || []) {
         if (!accept(t)) continue;
@@ -108,8 +108,14 @@ async function collect(game, cache) {
 
   await scan(true, () => true);
   if (game.onlineSemPais !== false) {
+    // 1ª vez: varre o período todo. Depois: só os últimos 14 dias (o resto já está no cache).
+    const JANELA = 14 * 24 * 3600;
+    const incremental = !!cache.onlineScanOk;
+    const afterOnline = incremental ? Math.max(after, before - JANELA) : after;
+    if (incremental) console.log(`[${game.slug}] varredura online incremental (últimos 14 dias)`);
     try {
-      await scan(false, t => t.isOnline === true && (t.countryCode === 'BR' || BR_TZ.test(t.timezone || '')));
+      await scan(false, t => t.isOnline === true && (t.countryCode === 'BR' || BR_TZ.test(t.timezone || '')), afterOnline);
+      cache.onlineScanOk = true;
     } catch (e) {
       console.error(`[${game.slug}] AVISO: varredura online sem país falhou (${e.message}); seguindo só com countryCode BR`);
     }
