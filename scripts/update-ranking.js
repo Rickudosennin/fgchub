@@ -65,12 +65,12 @@ function readJson(file, fallback) {
 
 async function collect(game, cache) {
   const after = Math.floor(new Date(game.from + 'T00:00:00-03:00').getTime() / 1000);
-  const before = Math.floor(Date.now() / 1000);
+  const before = Math.floor(Date.now() / 1000) + 86400; // até o fim de hoje, como no HTML base
   const min = game.minEntrants ?? 8;
 
   const todo = [];
   const stats = { torneios: 0, eventos: 0, minEntrants: 0, jaNoCache: 0, emAndamento: 0, online: 0 };
-  const STALE = 2 * 24 * 3600; // evento não finalizado, mas com 2+ dias, entra mesmo assim
+  const STALE = 2 * 24 * 3600; // evento não finalizado e recente -> reconsulta na próxima execução
   let page = 1, total = 1;
   while (page <= total) {
     console.log(`[${game.slug}] listando torneios ${page}/${total}`);
@@ -81,15 +81,15 @@ async function collect(game, cache) {
       for (const e of t.events || []) {
         stats.eventos++;
         if ((e.numEntrants || 0) < min) { stats.minEntrants++; continue; }
-        if (cache.events[e.id]) { stats.jaNoCache++; continue; }
-        // Organizador de torneio online costuma não finalizar o bracket: aceita COMPLETED
-        // ou evento antigo; só pula o que está rolando agora
-        const antigo = (t.startAt || 0) < before - STALE;
-        if (e.state !== 'COMPLETED' && !antigo) { stats.emAndamento++; continue; }
+        const c = cache.events[e.id];
+        if (c && !c.recheck) { stats.jaNoCache++; continue; }
+        const recente = (t.startAt || 0) > before - STALE;
+        if (e.state !== 'COMPLETED' && recente) stats.emAndamento++; // entra, mas será reconsultado
         if (t.isOnline === true) stats.online++;
         todo.push({
           id: e.id, name: e.name, entrants: e.numEntrants, tName: t.name,
-          online: t.isOnline === true, startAt: t.startAt
+          online: t.isOnline === true, startAt: t.startAt,
+          recheck: e.state !== 'COMPLETED' && recente
         });
       }
     }
