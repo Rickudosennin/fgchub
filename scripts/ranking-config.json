@@ -1,0 +1,36 @@
+{
+  "games": [
+    {
+      "slug": "t8-fn",
+      "name": "Tekken 8 · Fight Night",
+      "gameId": 49783,
+      "from": "2026-01-01",
+      "minEntrants": 8,
+      "enabled": true,
+      "modos": [
+        "online"
+      ],
+      "donoSlug": "user/e246d52c",
+      "apenasOnline": true,
+      "nomes": [
+        "fight night"
+      ]
+    },
+    {
+      "slug": "t8",
+      "name": "Tekken 8",
+      "gameId": 49783,
+      "from": "2026-01-01",
+      "minEntrants": 8,
+      "enabled": false
+    },
+    {
+      "slug": "sf6",
+      "name": "Street Fighter 6",
+      "gameId": 43868,
+      "from": "2026-01-01",
+      "minEntrants": 8,
+      "enabled": false
+    }
+  ]
+}
