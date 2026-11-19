@@ -55,7 +55,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
-    <script src="script.js?v=character-history-scan-20261003-2"></script>
+    <script src="script.js?v=character-history-scan-20261003-2-rk1"></script>
     <script src="players.js?v=ewgf-rank-20261013-1"></script>
     <script src="country-codes.js"></script>
     <script src="ewgf-config.js?v=20261013-2"></script>
@@ -636,6 +636,99 @@
                 `;
             }
 
+            // ===== Rankings do Tekken 8: ranking Brasil + séries/ligas em que o player aparece =====
+            // Só aparece quando "Tekken 8" está nos jogos do player. Dados: data/ranking/*.json (workflow) e ligas do Start.gg.
+            const T8_GAME_ID = 49783;
+            function montarHtmlRankingsT8() {
+                setTimeout(carregarRankingsT8, 0); // roda depois que o HTML do perfil entrar na página
+                return `
+                        <div id="rank_t8_box" class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Rankings · Tekken 8</h3>
+                            <p class="text-slate-500 text-sm">Carregando rankings...</p>
+                        </div>`;
+            }
+            async function posicaoNaLigaT8(slug, pid) {
+                const key = `fgchub:liga:${slug}:${pid}`;
+                try {
+                    const c = JSON.parse(localStorage.getItem(key) || 'null');
+                    if (c && Date.now() - c.t < 3600000) return c.r;
+                } catch (e) { /* sem cache local */ }
+                const q = `query($slug:String,$page:Int){league(slug:$slug){standings(query:{page:$page,perPage:50}){pageInfo{totalPages} nodes{placement totalPoints entrant{participants{player{id}}}}}}}`;
+                let achou = null, page = 1, total = 1;
+                while (page <= total && page <= 20) {
+                    const j = await callStartGG(q, { slug, page });
+                    const st = j && j.data && j.data.league && j.data.league.standings;
+                    if (!st) return undefined; // erro ou liga sem acesso: não grava cache
+                    total = (st.pageInfo && st.pageInfo.totalPages) || 1;
+                    const n = (st.nodes || []).find(x => ((x.entrant && x.entrant.participants) || []).some(p => p.player && String(p.player.id) === String(pid)));
+                    if (n) { achou = { pos: n.placement, pts: n.totalPoints ?? 0 }; break; }
+                    page++;
+                }
+                try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), r: achou })); } catch (e) { /* ok */ }
+                return achou;
+            }
+            async function carregarRankingsT8() {
+                const box = document.getElementById('rank_t8_box');
+                if (!box || !playerId) return;
+                const pid = Number(playerId);
+                const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                const lerJson = async f => { const r = await fetch('data/ranking/' + f, { cache: 'no-cache' }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
+                const ROTULOS = { 't8': 'Ranking Tekken 8 Brasil', 't8-fn': 'Ranking · Fight Night' };
+
+                let lista = [];
+                try { lista = ((await lerJson('index.json')).games || []).filter(g => (g.gameId || T8_GAME_ID) === T8_GAME_ID); } catch (e) { /* usa padrão */ }
+                if (!lista.length) lista = [{ slug: 't8' }, { slug: 't8-fn' }];
+
+                const dados = {};
+                await Promise.all(lista.map(async g => { try { dados[g.slug] = await lerJson(g.slug + '.json'); } catch (e) { dados[g.slug] = null; } }));
+                const achar = (d, modo) => {
+                    const m = d && d.modes && d.modes[modo];
+                    const p = m && m.players.find(x => x.id === pid);
+                    return p ? { pos: p.pos, pts: p.pts, n: p.n } : null;
+                };
+
+                // Ranking Brasil: online e offline (NA quando não pontua)
+                const base = dados['t8'];
+                const celula = (rot, r, modo) => `
+                            <a href="ranking.html?jogo=t8&modo=${modo}" class="block bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-center hover:border-slate-500 transition">
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${rot}</div>
+                                <div class="text-2xl font-black ${r ? 'text-white' : 'text-slate-500'}">${r ? '#' + r.pos : 'NA'}</div>
+                                <div class="text-xs text-slate-400">${r ? `${r.pts.toLocaleString('pt-BR')} pts · ${r.n} ${r.n === 1 ? 'evento' : 'eventos'}` : 'sem pontuação'}</div>
+                            </a>`;
+                let html = `
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Rankings · Tekken 8</h3>
+                                <span class="text-xs text-slate-500">${esc((lista.find(g => g.slug === 't8') || {}).rotulo || ROTULOS['t8'])}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                ${celula('Online', achar(base, 'online'), 'online')}
+                                ${celula('Offline', achar(base, 'offline'), 'offline')}
+                            </div>`;
+
+                // Séries próprias (ex.: Fight Night) e ligas externas: só aparecem se o player participa
+                const extras = [];
+                lista.filter(g => g.slug !== 't8').forEach(g => {
+                    const d = dados[g.slug];
+                    if (!d) return;
+                    const modo = d.modes.ambos ? 'ambos' : Object.keys(d.modes)[0];
+                    const r = achar(d, modo);
+                    if (r) extras.push({ label: g.rotulo || ROTULOS[g.slug] || ('Ranking ' + (g.name || g.slug)), r, url: 'ranking.html?jogo=' + g.slug + '&modo=' + modo });
+                });
+                const ligas = (typeof LIGAS_MONITORADAS !== 'undefined' ? LIGAS_MONITORADAS : []).filter(l => (l.jogos || []).includes('tekken8'));
+                const resLigas = await Promise.all(ligas.map(l => posicaoNaLigaT8(l.slug, pid).catch(() => undefined)));
+                ligas.forEach((l, i) => { if (resLigas[i]) extras.push({ label: l.label, r: { pos: resLigas[i].pos, pts: resLigas[i].pts }, url: l.rankingUrl, externo: true }); });
+
+                if (extras.length) {
+                    html += `<div class="divide-y divide-slate-800 border-t border-slate-800 pt-1">` + extras.map(x => `
+                                <a href="${esc(x.url)}"${x.externo ? ' target="_blank" rel="noopener"' : ''} class="flex items-center justify-between gap-3 py-2 hover:bg-slate-800/40 transition rounded">
+                                    <span class="text-sm text-slate-300 truncate">${esc(x.label)}</span>
+                                    <span class="text-sm font-bold text-white whitespace-nowrap">#${x.r.pos}<span class="text-xs font-normal text-slate-400"> · ${x.r.pts.toLocaleString('pt-BR')} pts</span></span>
+                                </a>`).join('') + `</div>`;
+                }
+                const atual = document.getElementById('rank_t8_box');
+                if (atual) atual.innerHTML = html;
+            }
+
             function montarHtmlPerfil(dados, fonte) {
                 const {
                     gamerTag, totalWins, totalLosses, winrateAllTime,
@@ -779,6 +872,8 @@
                                 </div>
                             `}
                         </div>
+
+                        ${jogosPlayer.includes('tekken8') ? montarHtmlRankingsT8() : ''}
 
                         ${montarHtmlUsoPersonagens(characterUsage, characterUsageUnavailable, characterUsagePartial, { characterUsageHistoryComplete, characterUsageEventCount, characterUsageSetCount })}
 
