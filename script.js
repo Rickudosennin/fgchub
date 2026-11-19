@@ -99,6 +99,7 @@ async function carregarTorneiosDasLigas() {
 // somados às ligas externas (ex.: ranking de um TO específico).
 let rankingsProprios = [], _tipoPesquisa = 'online', _rkProprio = {};
 const RANKING_JOGO_PADRAO = { 't8': 49783, 't8-fn': 49783 };
+const RANKING_ROTULO_PADRAO = { 't8': 'Ranking Tekken 8 Brasil', 't8-fn': 'Ranking · Fight Night' };
 async function carregarRankingsProprios() {
     try {
         const r = await fetch('data/ranking/index.json', { cache: 'no-cache' });
@@ -106,7 +107,7 @@ async function carregarRankingsProprios() {
         const j = await r.json();
         rankingsProprios = (j.games || []).map(g => ({
             slug: g.slug,
-            label: 'FGC HUB · ' + g.name,
+            label: g.rotulo || RANKING_ROTULO_PADRAO[g.slug] || ('Ranking ' + g.name),
             gameId: g.gameId || RANKING_JOGO_PADRAO[g.slug],
             nomes: g.nomes || (g.slug === 't8-fn' ? ['fight night'] : null)
         })).filter(g => g.gameId);
