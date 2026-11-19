@@ -168,13 +168,22 @@ async function collect(game, cache) {
     }
   }
 
+  // Cache antigo (sem sponsor/país): reconsulta só os standings, usando os dados já guardados
+  const naFila = new Set(todo.map(t => t.id));
+  let upgrade = 0;
+  for (const c of Object.values(cache.events)) {
+    if (c.v === 2 || naFila.has(c.id)) continue;
+    todo.push({ id: c.id, name: c.name, entrants: c.entrants, tName: c.tName, online: c.online, startAt: c.startAt, recheck: c.recheck });
+    upgrade++;
+  }
+  stats.atualizandoCache = upgrade;
   console.log(`[${game.slug}] diag:`, JSON.stringify(stats));
   const B = 5;
   for (let i = 0; i < todo.length; i += B) {
     const batch = todo.slice(i, i + B);
     console.log(`[${game.slug}] standings ${Math.min(i + B, todo.length)}/${todo.length}`);
     const q = 'query{' + batch.map((e, k) =>
-      `e${k}:event(id:${e.id}){id standings(query:{page:1,perPage:16}){nodes{placement entrant{participants{player{id gamerTag}}}}}}`
+      `e${k}:event(id:${e.id}){id standings(query:{page:1,perPage:16}){nodes{placement entrant{participants{prefix user{location{country}} player{id gamerTag}}}}}}`
     ).join('') + '}';
     const d = await gql(q, {});
     batch.forEach((e, k) => {
@@ -186,10 +195,12 @@ async function collect(game, cache) {
         if (ps.length !== 1) { team = true; break; }
         const pl = ps[0].player;
         if (!pl || !pl.id) continue;
-        rows.push({ p: n.placement, id: pl.id, tag: pl.gamerTag });
+        const u = ps[0].user && ps[0].user.location;
+        rows.push({ p: n.placement, id: pl.id, tag: pl.gamerTag, x: ps[0].prefix || '', c: (u && u.country) || '' });
       }
       e.rows = team ? [] : rows;
       e.team = team;
+      e.v = 2; // v2 = standings com prefixo (sponsor) e país
       cache.events[e.id] = e;
     });
   }
@@ -209,8 +220,10 @@ function compute(events, mode, min) {
       const pts = points(r.p);
       if (!pts) continue;
       let o = map.get(r.id);
-      if (!o) { o = { id: r.id, tag: r.tag, pts: 0, best: 99, list: [] }; map.set(r.id, o); }
+      if (!o) { o = { id: r.id, tag: r.tag, px: '', cc: '', pts: 0, best: 99, list: [] }; map.set(r.id, o); }
       o.tag = r.tag; // tag mais recente
+      o.px = r.x || '';            // sponsor do evento mais recente
+      if (r.c) o.cc = r.c;          // último país informado
       o.pts += pts;
       o.best = Math.min(o.best, r.p);
       o.list.push({ n: e.tName + ' — ' + e.name, p: r.p, pts, e: e.entrants, d: e.startAt });
@@ -221,7 +234,7 @@ function compute(events, mode, min) {
   const players = arr.map((o, i) => {
     if (o.pts !== last) { pos = i + 1; last = o.pts; }
     o.list.sort((a, b) => b.d - a.d);
-    return { pos, id: o.id, tag: o.tag, pts: o.pts, n: o.list.length, best: o.best, list: o.list };
+    return { pos, id: o.id, tag: o.tag, px: o.px, cc: o.cc, pts: o.pts, n: o.list.length, best: o.best, list: o.list };
   });
   return { events: evCount, players };
 }
