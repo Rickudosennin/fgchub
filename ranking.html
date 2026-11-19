@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Oswald:wght@500;600;700&display=swap">
     <link rel="stylesheet" href="themes.css">
     <script src="theme.js"></script>
+    <script src="country-codes.js"></script>
     <style>
         :root {
             --bg: #0d0e10;
@@ -82,6 +83,9 @@
         tr.p.t2 td:first-child { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
         tr.p.t3 td:first-child { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 30%, transparent); }
         .tag { font-weight: 600; font-size: 16px; }
+        .tag .px { color: var(--mute); font-weight: 500; margin-right: 6px; }
+        .tag .px::after { content: ' |'; }
+        .tag .flag { width: 20px; height: 14px; object-fit: cover; border-radius: 2px; margin-right: 9px; vertical-align: -1px; }
         .bar { width: 28%; }
         .bar i { display: block; height: 4px; background: var(--line); position: relative; }
         .bar i b { position: absolute; inset: 0 auto 0 0; background: var(--text); opacity: .75; }
@@ -191,6 +195,10 @@
         var a = norm(t), b = norm(e);
         return (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) ? (t.length >= e.length ? t : e) : n;
     };
+    var flag = function (c) {
+        var iso = c && window.fgcCountryIso2 ? window.fgcCountryIso2(c) : null;
+        return iso ? '<img class="flag" src="https://flagcdn.com/w40/' + iso.toLowerCase() + '.png" alt="" title="' + esc(c) + '" loading="lazy">' : '';
+    };
     var norm = function (s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); };
     var qs = new URLSearchParams(location.search);
 
@@ -264,7 +272,7 @@
             '<small>' + upd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '</small>';
 
         var f = norm(filtro.trim());
-        var list = f ? m.players.filter(function (o) { return norm(o.tag).indexOf(f) >= 0; }) : m.players;
+        var list = f ? m.players.filter(function (o) { return norm((o.px || '') + ' ' + o.tag).indexOf(f) >= 0; }) : m.players;
         var max = m.players.length ? m.players[0].pts : 1;
 
         var body = $('corpo');
@@ -279,7 +287,7 @@
             tr.className = 'p' + (o.pos <= 3 ? ' t' + o.pos : '');
             tr.innerHTML =
                 '<td class="pos">' + o.pos + '</td>' +
-                '<td class="tag">' + esc(o.tag) + '</td>' +
+                '<td class="tag">' + flag(o.cc) + (o.px ? '<span class="px">' + esc(o.px) + '</span>' : '') + esc(o.tag) + '</td>' +
                 '<td class="bar hide-s"><i><b style="width:' + Math.max(2, Math.round(o.pts / max * 100)) + '%"></b></i></td>' +
                 '<td class="r pts">' + o.pts + '</td>' +
                 '<td class="r hide-s">' + o.n + '</td>' +

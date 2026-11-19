@@ -140,8 +140,11 @@ async function abrirRankingProprio(slugComPrefixo, label, rankingUrl) {
                 const c = o.pos === 1 ? 'rank-1' : o.pos === 2 ? 'rank-2' : o.pos === 3 ? 'rank-3' : '';
                 const medal = o.pos === 1 ? '🥇' : o.pos === 2 ? '🥈' : o.pos === 3 ? '🥉' : '';
                 const w = Math.round(o.pts / maxPts * 100);
-                const tag = String(o.tag).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-                return `<div class="ranking-player-card ${c}"><div class="rank-number ${c || 'rank-other'}">${medal || '#' + o.pos}</div><div class="ranking-player-info"><div class="ranking-player-name">${tag}</div><div class="ranking-player-pts">${o.pts.toLocaleString('pt-BR')} pts · ${o.n} ${o.n === 1 ? 'evento' : 'eventos'}</div></div><div class="ranking-bar-wrap"><div class="ranking-bar-fill ${c ? '' : 'rank-other-bar'}" style="width:${w}%"></div></div></div>`;
+                const esc = x => String(x).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+                const tag = (o.px ? esc(o.px) + ' | ' : '') + esc(o.tag);
+                const iso = o.cc ? (COUNTRY_MAP[o.cc] || (window.fgcCountryIso2 && window.fgcCountryIso2(o.cc)) || null) : null;
+                const flag = iso ? `<img src="https://flagcdn.com/w40/${iso.toLowerCase()}.png" class="ranking-flag" alt="${esc(o.cc)}">` : `<div class="ranking-flag-placeholder"></div>`;
+                return `<div class="ranking-player-card ${c}"><div class="rank-number ${c || 'rank-other'}">${medal || '#' + o.pos}</div><div class="ranking-player-info"><div class="ranking-player-name">${tag}</div><div class="ranking-player-pts">${o.pts.toLocaleString('pt-BR')} pts · ${o.n} ${o.n === 1 ? 'evento' : 'eventos'}</div></div>${flag}<div class="ranking-bar-wrap"><div class="ranking-bar-fill ${c ? '' : 'rank-other-bar'}" style="width:${w}%"></div></div></div>`;
             }).join('');
             content.innerHTML = tabs + (rows || `<div style="text-align:center;padding:40px;color:#aaa;">Sem dados para este formato.</div>`) + `<div style="text-align:center;padding:14px 0 4px;color:#777;font-size:11px;">${m.events} eventos · atualizado em ${upd}</div>`;
             content.querySelectorAll('.rk-modos button').forEach(b => b.onclick = () => { modo = b.dataset.m; desenhar(); });
@@ -655,7 +658,7 @@ async function pesquisar() {
 
             const ligasInfo = [...rankingsProprioDoTorneio(t, gameObj), ...verificarLigaDeTorneio(t.url)];
             const ligaBadgeHTML = ligasInfo.map(liga => `<div class="league-badge${liga.own ? ' own' : ''}"><i class="fa-solid ${liga.own ? 'fa-ranking-star' : 'fa-trophy'}" style="font-size:8px;color:${liga.own ? '#4ade80' : '#a855f7'};"></i>&nbsp;${liga.label}</div>`).join('');
-            const rankingBtnHTML = ligasInfo.map(liga => `<button onclick="abrirRanking('${liga.slug}','${liga.label.replace(/'/g,"\\'")}','${liga.rankingUrl}')" class="btn-ranking w-full"><i class="fa-solid fa-ranking-star"></i> RANKING${ligasInfo.length > 1 ? `: ${liga.label}` : ''}</button>`).join('');
+            const rankingBtnHTML = ligasInfo.map(liga => `<button onclick="abrirRanking('${liga.slug}','${liga.label.replace(/'/g,"\\'")}','${liga.rankingUrl}')" class="btn-ranking w-full"><i class="fa-solid fa-ranking-star"></i> ${liga.own ? liga.label : 'RANKING' + (ligasInfo.length > 1 ? `: ${liga.label}` : '')}</button>`).join('');
 
             let eventsListHTML = '';
             if (t.events && t.events.length > 1) {
