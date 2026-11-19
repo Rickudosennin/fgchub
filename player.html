@@ -12,6 +12,7 @@
     <!-- Temas -->
     <link rel="stylesheet" href="themes.css">
     <link rel="stylesheet" href="theme-evo-pages.css?v=1">
+    <link rel="stylesheet" href="ewgf-dashboard.css?v=20261119-1">
     <script src="theme.js"></script>
 </head>
 <body class="p-4 md:p-10 bg-slate-950 text-slate-100 overflow-x-hidden">
@@ -60,6 +61,7 @@
     <script src="country-codes.js"></script>
     <script src="ewgf-config.js?v=20261013-2"></script>
     <script src="ewgf-rank.js?v=20261013-3"></script>
+    <script src="ewgf-dashboard.js?v=20261119-1"></script>
     <script src="player-share.js?v=20261009-2"></script>
     <script>
         (function() {
@@ -1543,16 +1545,35 @@
                     if (input) input.value = normalizedId;
                     if (!normalizedId) {
                         document.getElementById('ewgf-rank-link')?.classList.add('hidden');
+                        window.FGCEwgfDashboard?.unmount();
                         definirStatusEwgfRank('ID EWGF removido do perfil.');
                         return true;
                     }
                     definirStatusEwgfRank('ID salvo. Consultando o rank…');
                     await buscarRankEwgf(normalizedId, false);
+                    void montarDashboardEwgf();
                     return true;
                 } finally {
                     if (saveButton) saveButton.disabled = false;
                 }
             };
+
+            // Dashboard EWGF: só para quem marcou Tekken 8 em "Jogos" e informou o Tekken ID
+            function ewgfCharIcon(name) {
+                const chars = GAMES_ART_MAP?.tekken8?.chars || {};
+                const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const n = norm(name);
+                if (!n) return '';
+                const hit = Object.values(chars).find(c => norm(c.label) === n)
+                    || Object.entries(chars).find(([key]) => n.startsWith(key))?.[1];
+                return hit ? hit.file : '';
+            }
+            function montarDashboardEwgf(force = false) {
+                if (ewgfTekkenIdProfile && jogosPlayer.includes('tekken8')) {
+                    return window.FGCEwgfDashboard?.mount(ewgfTekkenIdProfile, { charIcon: ewgfCharIcon, force });
+                }
+                window.FGCEwgfDashboard?.unmount();
+            }
 
             async function carregarPerfil(forceRefresh = false) {
                 if (!playerId) {
@@ -1598,6 +1619,7 @@
                     dadosPerfilAtual = dados;
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     if (ewgfTekkenIdProfile) void buscarRankEwgf(ewgfTekkenIdProfile, true);
+                    void montarDashboardEwgf();
                     renderizarGraficoEvolucao(dados.tournaments || []);
                     atualizarInterfaceVarreduraPersonagens();
                     if (fonte === 'cache' && dados.countryChecked !== true && !dados.countryName && !dados.countryCode) {
