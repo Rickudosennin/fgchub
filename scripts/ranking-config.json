@@ -22,7 +22,7 @@
       "gameId": 49783,
       "from": "2026-01-01",
       "minEntrants": 8,
-      "enabled": false
+      "enabled": true
     },
     {
       "slug": "sf6",
