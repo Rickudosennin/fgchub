@@ -599,6 +599,11 @@
                     `;
                 }).join('');
 
+                // Só mostra o card quando há personagem encontrado (ou contagem pausada/com erro, para poder continuar)
+                const varreduraPendente = !controleVarreduraPersonagens.running &&
+                    ['paused', 'error'].includes(estadoVarreduraPersonagens?.status);
+                if (!gameCards && !varreduraPendente) return '';
+
                 return `
                     <div id="character-usage-panel" class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 w-full min-w-0">
                         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -945,33 +950,6 @@
                             </div>
                         </div>
 
-                        <!-- HEAD TO HEAD -->
-                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Head to Head</h3>
-                            <p class="text-[11px] text-slate-500 -mt-1">Calculado a partir dos sets dos últimos ${tournaments.length} torneios registrados no Start.gg para este player. Torneios mais antigos que isso não entram na conta.</p>
-                            ${(!headToHead || headToHead.length === 0) ? `
-                                <div class="text-slate-500 text-sm py-6 text-center border border-dashed border-slate-800 rounded-lg">
-                                    Nenhum confronto direto registrado via Start.gg.
-                                </div>
-                            ` : `
-                                <div class="divide-y divide-slate-800">
-                                    ${headToHead.map(r => {
-                                        const wrClass = r.winrate >= 60 ? 'text-green-500' : (r.winrate >= 40 ? 'text-yellow-500' : 'text-red-500');
-                                        const oppUrl = `player.html?id=${encodeURIComponent(r.opponentId)}&tag=${encodeURIComponent(r.opponentTag)}`;
-                                        return `
-                                            <div class="py-3 flex items-center justify-between text-sm gap-2 min-w-0">
-                                                <a href="${oppUrl}" class="font-semibold text-slate-200 truncate hover:text-red-500 transition min-w-0">${r.opponentTag}</a>
-                                                <div class="flex items-center gap-2 sm:gap-3 text-xs flex-shrink-0">
-                                                    <span class="text-slate-400 font-mono">${r.wins}W - ${r.losses}L</span>
-                                                    <span class="font-bold ${wrClass}">${r.winrate}%</span>
-                                                </div>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
-                            `}
-                        </div>
-
                         <!-- HISTÓRICO COMPLETO -->
                         <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 w-full min-w-0 overflow-hidden">
                             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Histórico Completo</h3>
@@ -1310,6 +1288,7 @@
                 );
                 const nextPanel = wrapper.firstElementChild;
                 if (nextPanel) currentPanel.replaceWith(nextPanel);
+                else currentPanel.remove();
                 atualizarInterfaceVarreduraPersonagens();
             }
 
@@ -1619,6 +1598,11 @@
                     dadosPerfilAtual = dados;
                     conteudo.innerHTML = montarHtmlPerfil(dados, fonte);
                     if (ewgfTekkenIdProfile) void buscarRankEwgf(ewgfTekkenIdProfile, true);
+                    // Busca de personagens automática: só quando ainda não existe histórico (local ou compartilhado)
+                    if (!historyToApply && !controleVarreduraPersonagens.running && !estadoVarreduraPersonagens
+                        && (dados.tournaments || []).length > 0 && typeof window.iniciarVarreduraPersonagens === 'function') {
+                        void window.iniciarVarreduraPersonagens();
+                    }
                     void montarDashboardEwgf();
                     renderizarGraficoEvolucao(dados.tournaments || []);
                     atualizarInterfaceVarreduraPersonagens();
