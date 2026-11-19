@@ -304,7 +304,7 @@
             <div class="ewgfd-penta">
                 <svg viewBox="0 0 120 120" role="img" aria-label="Stat Pentagon indisponível no plano Free"><polygon points="${pts.join(' ')}" class="ewgfd-pg"/><polygon points="${inner.join(' ')}" class="ewgfd-pg"/></svg>
             </div>
-            <p class="ewgfd-lock">${icon('fa-lock')} Indisponível no plano Free da EWGF</p>
+            <p class="ewgfd-lock">${icon('fa-lock')} Em breve dados da EWGF</p>
             <p class="ewgfd-note">Os cinco atributos só vêm no endpoint de perfil (plano Pro). Nenhum valor é estimado.</p>`;
     }
 
