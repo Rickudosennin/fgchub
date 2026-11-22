@@ -2,7 +2,7 @@ name: Atualizar rankings
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # a cada 6 horas (UTC)
+    - cron: '17 */6 * * *'   # a cada 6 horas, minuto 17 (evita atraso da hora cheia; UTC)
   workflow_dispatch:         # botão "Run workflow" manual
 
 permissions:
