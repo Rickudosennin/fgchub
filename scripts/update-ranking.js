@@ -250,6 +250,8 @@ async function updateGame(game) {
   const nomesLc = (game.nomes || []).map(n => n.toLowerCase());
   const events = Object.values(cache.events).filter(e =>
     !nomesLc.length || nomesLc.some(n => (e.tName || '').toLowerCase().includes(n)));
+  const outFile = path.join(OUT_DIR, `${game.slug}.json`);
+  const old = readJson(outFile, null);
   const out = {
     slug: game.slug,
     name: game.name,
@@ -258,7 +260,18 @@ async function updateGame(game) {
     minEntrants: min,
     modes: Object.fromEntries((game.modos || ['online', 'offline', 'ambos']).map(m => [m, compute(events, m, min)]))
   };
-  fs.writeFileSync(path.join(OUT_DIR, `${game.slug}.json`), JSON.stringify(out));
+  // Movimento: pv = posição na versão anterior do ranking (0 = entrou agora).
+  // A base só troca quando alguma posição muda; senão mantém a anterior.
+  for (const [m, cur] of Object.entries(out.modes)) {
+    const op = old && old.modes && old.modes[m] && old.modes[m].players;
+    if (!op) continue;
+    const oldPos = new Map(op.map(x => [x.id, x.pos]));
+    const changed = cur.players.length !== op.length || cur.players.some(x => oldPos.get(x.id) !== x.pos);
+    const base = changed ? oldPos : new Map(op.filter(x => x.pv !== undefined).map(x => [x.id, x.pv]));
+    if (!base.size) continue;
+    for (const x of cur.players) x.pv = base.has(x.id) ? base.get(x.id) : 0;
+  }
+  fs.writeFileSync(outFile, JSON.stringify(out));
   console.log(`[${game.slug}] OK: +${added} eventos novos, ${events.length} no ranking (${Object.keys(cache.events).length} no cache)`);
 }
 
