@@ -201,11 +201,11 @@ document.addEventListener('keydown', function (e) {
     var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
     // Movimento no ranking: ▲ subiu (verde), ▼ desceu (vermelho), = manteve, NEW entrou agora
     var mv = function (o) {
-        if (o.pv === undefined) return '';
+        if (o.pv === undefined) return '<span class="mv eq" title="Manteve a posição">=</span>';
         if (o.pv === 0) return '<span class="mv new" title="Entrou no ranking">NEW</span>';
         var d = o.pv - o.pos;
-        if (d > 0) return '<span class="mv up" title="Subiu ' + d + ' (era ' + o.pv + 'º)">&#9650;</span>';
-        if (d < 0) return '<span class="mv down" title="Desceu ' + (-d) + ' (era ' + o.pv + 'º)">&#9660;</span>';
+        if (d > 0) return '<span class="mv up" title="Subiu ' + d + ' (era ' + o.pv + 'º)">&#9650;' + d + '</span>';
+        if (d < 0) return '<span class="mv down" title="Desceu ' + (-d) + ' (era ' + o.pv + 'º)">&#9660;' + (-d) + '</span>';
         return '<span class="mv eq" title="Manteve a posição">=</span>';
     };
     // "Torneio — Evento": mostra uma vez só quando o nome do evento repete o do torneio
