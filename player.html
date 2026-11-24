@@ -644,6 +644,182 @@
                 `;
             }
 
+            // ===== Desempenho (Start.gg) por jogo: eventos, top 8, sets e games =====
+            // Sem seed. Uma consulta paginada de sets do player agrupada por jogo; cache local de 6h.
+            const DESEMP_TTL = 6 * 3600 * 1000;
+            const DESEMP_IDS = { sf6: 43868, mk1: 48599, mk11: 3200, tekken8: 49783, '2xko': 64423, ffcotw: 73221, gbvsr: 48548, ggst: 33945, mtfs: 107706 };
+            const DESEMP_ESTADO = { jogo: null, modo: 'all', periodo: 'all', dados: null };
+            function jogosComDesempenho() { return (jogosPlayer || []).filter(k => DESEMP_IDS[k] && GAMES_PLAYED_MAP[k]); }
+            function montarHtmlDesempenho() {
+                const jogos = jogosComDesempenho();
+                if (!jogos.length) return '';
+                if (!DESEMP_ESTADO.jogo || !jogos.includes(DESEMP_ESTADO.jogo)) DESEMP_ESTADO.jogo = jogos.includes('tekken8') ? 'tekken8' : jogos[0];
+                setTimeout(carregarDesempenho, 0);
+                return `
+                        <div id="desemp_box" class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 w-full min-w-0 overflow-hidden">
+                            <h3 id="desemp_titulo" class="text-xs font-bold text-slate-400 uppercase tracking-wider border-l-2 border-red-500 pl-2">Desempenho</h3>
+                            <p id="desemp_msg" class="text-slate-500 text-sm">Carregando eventos...</p>
+                            <div id="desemp_body"></div>
+                        </div>`;
+            }
+            // Busca sets do mais recente para o mais antigo. Com `base` (cache), para assim que uma página só traz sets já contados.
+            async function buscarSetsDesempenho(pid, onProgress, base) {
+                const mk = ord => `query($id:ID!,$page:Int!){player(id:$id){sets(perPage:25,page:$page${ord ? ',sortType:RECENT' : ''}){pageInfo{totalPages} nodes{ id winnerId event{ id name startAt isOnline numEntrants videogame{id} tournament{name} } slots{ entrant{ id standing{placement} participants{player{id}} } standing{ stats{ score{ value } } } } } } } }`;
+                const validos = new Set(Object.values(DESEMP_IDS));
+                const eventos = new Map();
+                const seen = new Set(base ? base.seen : []);
+                if (base) Object.values(base.g).forEach(l => l.forEach(e => eventos.set(e.id, { ...e })));
+                let ord = base ? base.ord : true;
+                let page = 1, total = 1, falhas = 0;
+                while (page <= total && page <= 120) {
+                    let j;
+                    try { j = await callStartGG(mk(ord), { id: String(pid), page }); } catch (e) { j = null; }
+                    const conn = j && j.data && j.data.player && j.data.player.sets;
+                    if (!conn) {
+                        if (page === 1 && ord && !base && ++falhas === 1) { ord = false; continue; } // ordenação recusada: varredura completa sem parada antecipada
+                        if (++falhas > 3) throw new Error('falha na API');
+                        await new Promise(r => setTimeout(r, 2500));
+                        continue;
+                    }
+                    falhas = 0;
+                    total = (conn.pageInfo && conn.pageInfo.totalPages) || 1;
+                    const nodes = conn.nodes || [];
+                    const todosVistos = nodes.length > 0 && nodes.every(n => seen.has(n.id));
+                    for (const s of nodes) {
+                        if (seen.has(s.id)) continue;
+                        const ev = s.event;
+                        if (!ev || !ev.videogame || !validos.has(Number(ev.videogame.id))) { if (s.winnerId != null) seen.add(s.id); continue; }
+                        const slots = s.slots || [];
+                        const meu = slots.find(x => x.entrant && (x.entrant.participants || []).some(p => p.player && Number(p.player.id) === Number(pid)));
+                        if (!meu || (meu.entrant.participants || []).length !== 1) { if (s.winnerId != null) seen.add(s.id); continue; } // só singles
+                        const outro = slots.find(x => x !== meu);
+                        let e = eventos.get(ev.id);
+                        if (!e) {
+                            e = { g: Number(ev.videogame.id), id: ev.id, n: (ev.tournament && ev.tournament.name) || ev.name || 'Evento', d: ev.startAt || 0, on: !!ev.isOnline,
+                                  ne: ev.numEntrants || 0, p: null, sw: 0, sl: 0, gw: 0, gl: 0 };
+                            eventos.set(ev.id, e);
+                        }
+                        e.p = (meu.entrant.standing && meu.entrant.standing.placement) || e.p;
+                        e.ne = ev.numEntrants || e.ne;
+                        const a = meu.standing && meu.standing.stats && meu.standing.stats.score && meu.standing.stats.score.value;
+                        const b = outro && outro.standing && outro.standing.stats && outro.standing.stats.score && outro.standing.stats.score.value;
+                        if (s.winnerId == null) continue; // ainda em andamento: conta numa próxima atualização
+                        seen.add(s.id);
+                        if (a == null || b == null || a < 0 || b < 0) continue; // DQ / sem placar: não conta
+                        if (Number(s.winnerId) === Number(meu.entrant.id)) e.sw++; else e.sl++;
+                        e.gw += a; e.gl += b;
+                    }
+                    if (onProgress) onProgress(page, total);
+                    if (base && ord && todosVistos) break; // chegou no que já estava no cache
+                    page++;
+                    if (page <= total) await new Promise(r => setTimeout(r, 700));
+                }
+                const porJogo = {};
+                for (const e of eventos.values()) (porJogo[e.g] = porJogo[e.g] || []).push(e);
+                Object.values(porJogo).forEach(l => l.sort((x, y) => y.d - x.d));
+                return { g: porJogo, seen: [...seen], ord };
+            }
+            function ordPt(n) { return n ? n + 'º' : '—'; }
+            function eventosDoJogoAtivo() { return (DESEMP_ESTADO.dados && DESEMP_ESTADO.dados[DESEMP_IDS[DESEMP_ESTADO.jogo]]) || []; }
+            function renderDesempenho() {
+                const body = document.getElementById('desemp_body');
+                const msg = document.getElementById('desemp_msg');
+                const titulo = document.getElementById('desemp_titulo');
+                if (!body || !DESEMP_ESTADO.dados) return;
+                const jogos = jogosComDesempenho();
+                if (titulo) titulo.textContent = jogos.length > 1 ? 'Desempenho' : 'Desempenho · ' + GAMES_PLAYED_MAP[DESEMP_ESTADO.jogo].label;
+                const agora = Date.now() / 1000;
+                const lim = DESEMP_ESTADO.periodo === '90' ? agora - 90 * 86400 : DESEMP_ESTADO.periodo === '2026' ? Date.UTC(2026, 0, 1) / 1000 : 0;
+                const fim = DESEMP_ESTADO.periodo === '2026' ? Date.UTC(2027, 0, 1) / 1000 : Infinity;
+                const lista = eventosDoJogoAtivo().filter(e => (DESEMP_ESTADO.modo === 'all' || (DESEMP_ESTADO.modo === 'on') === e.on) && e.d >= lim && e.d < fim);
+                if (msg) msg.hidden = true;
+                const off = lista.filter(e => !e.on).length, on = lista.length - off;
+                const top8 = lista.filter(e => e.p && e.p <= 8).length;
+                const melhor = Math.min(...lista.map(e => e.p || 999));
+                const sw = lista.reduce((s, e) => s + e.sw, 0), sl = lista.reduce((s, e) => s + e.sl, 0);
+                const gw = lista.reduce((s, e) => s + e.gw, 0), gl = lista.reduce((s, e) => s + e.gl, 0);
+                const pc = (w, l) => (w + l ? Math.round(w / (w + l) * 100) : 0);
+                const card = (t, v, s) => `<div class="border border-slate-800 rounded-lg p-3"><div class="text-[10px] uppercase tracking-wider text-slate-500">${t}</div><div class="text-2xl font-bold text-white">${v}</div><div class="text-xs text-slate-400">${s}</div></div>`;
+                const pill = (grp, val, rot) => `<button type="button" data-g="${grp}" data-v="${val}" class="px-3 py-1.5 rounded-md text-xs font-semibold ${DESEMP_ESTADO[grp] === val ? 'bg-slate-200 text-slate-900' : 'border border-slate-700 text-slate-400'}">${rot}</button>`;
+                const abas = jogos.length > 1 ? `<div class="flex flex-wrap gap-2 mb-3 pb-3 border-b border-slate-800">${jogos.map(k => `<button type="button" data-jogo="${k}" class="px-3 py-1.5 rounded-md text-xs font-bold ${DESEMP_ESTADO.jogo === k ? 'bg-red-600 text-white' : 'border border-slate-700 text-slate-300'}">${GAMES_PLAYED_MAP[k].label}</button>`).join('')}</div>` : '';
+                body.innerHTML = `
+                    ${abas}
+                    <div class="flex flex-wrap gap-2 mb-3">${pill('modo', 'all', 'Todos')}${pill('modo', 'off', 'Offline')}${pill('modo', 'on', 'Online')}</div>
+                    <div class="flex flex-wrap gap-2 mb-4">${pill('periodo', '90', 'Últimos 90 dias')}${pill('periodo', '2026', '2026')}${pill('periodo', 'all', 'Todo período')}</div>
+                    ${lista.length ? `
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        ${card('Eventos', lista.length, off + ' offline · ' + on + ' online')}
+                        ${card('Top 8', top8, 'melhor: ' + (melhor < 999 ? ordPt(melhor) : '—'))}
+                        ${card('Sets', sw + '–' + sl, pc(sw, sl) + '% vitórias')}
+                        ${card('Games', gw + '–' + gl, pc(gw, gl) + '% vitórias')}
+                    </div>
+                    ` : '<p class="text-slate-500 text-sm">Sem eventos neste filtro.</p>'}`;
+                body.querySelectorAll('button[data-g]').forEach(b => b.onclick = () => { DESEMP_ESTADO[b.dataset.g] = b.dataset.v; renderDesempenho(); });
+                body.querySelectorAll('button[data-jogo]').forEach(b => b.onclick = () => { DESEMP_ESTADO.jogo = b.dataset.jogo; renderDesempenho(); atualizarChipsDesempenho(); });
+            }
+            function atualizarChipsDesempenho() {
+                if (!DESEMP_ESTADO.dados) return;
+                const ano = new Date().getFullYear();
+                const ini = Date.UTC(ano, 0, 1) / 1000, fim = Date.UTC(ano + 1, 0, 1) / 1000;
+                const lista = eventosDoJogoAtivo().filter(e => e.d >= ini && e.d < fim);
+                const sw = lista.reduce((t, e) => t + e.sw, 0), sl = lista.reduce((t, e) => t + e.sl, 0);
+                const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+                set('chip-torneios-rot', 'TORNEIOS ' + ano);
+                set('chip-torneios', lista.length);
+                set('chip-wr-rot', 'WIN RATE ' + ano);
+                const wr = sw + sl ? Math.round(sw / (sw + sl) * 100) : 0;
+                set('chip-wr', sw + sl ? wr + '%' : '—');
+                const el = document.getElementById('chip-wr');
+                if (el) el.className = wr >= 60 ? 'text-green-500' : wr >= 40 ? 'text-yellow-500' : 'text-red-500';
+            }
+            let DESEMP_FORCAR = false; // true quando o usuário clica em "Atualizar"
+            const DESEMP_COOLDOWN = 10 * 60 * 1000; // cache compartilhado "fresco": Atualizar não consulta a API de novo
+            // Cache compartilhado (Firestore, players/<id>.desempenho, merge) + cópia local para abrir rápido
+            async function lerDesempenhoRemoto(pid) {
+                try {
+                    const doc = await _playersCollection.doc(String(pid)).get();
+                    const d = doc.exists ? doc.data().desempenho : null;
+                    return d && d.g && Array.isArray(d.seen) ? d : null;
+                } catch (e) { return null; }
+            }
+            async function salvarDesempenhoRemoto(pid, reg) {
+                try {
+                    await _playersCollection.doc(String(pid)).set({ desempenho: JSON.parse(JSON.stringify(reg)) }, { merge: true });
+                } catch (e) { console.warn('Não foi possível salvar o desempenho compartilhado:', e); }
+            }
+            async function carregarDesempenho() {
+                const msg = document.getElementById('desemp_msg');
+                if (!msg || !playerId) return;
+                const key = 'fgchub:desemp:v3:' + playerId;
+                const pronto = () => { renderDesempenho(); atualizarChipsDesempenho(); };
+                const forcar = DESEMP_FORCAR; DESEMP_FORCAR = false;
+                let local = null;
+                try {
+                    const c = JSON.parse(localStorage.getItem(key) || 'null');
+                    if (c && c.g && Array.isArray(c.seen)) local = c;
+                } catch (e) { /* sem cache local */ }
+                if (local && !forcar) { DESEMP_ESTADO.dados = local.g; pronto(); }
+                // cache compartilhado: vale o mais novo entre o do servidor e o local
+                const remoto = await lerDesempenhoRemoto(playerId);
+                let cache = remoto && (!local || (remoto.t || 0) >= (local.t || 0)) ? remoto : local;
+                if (cache) {
+                    DESEMP_ESTADO.dados = cache.g; pronto();
+                    try { localStorage.setItem(key, JSON.stringify(cache)); } catch (e) { /* ok */ }
+                    if (!forcar) return; // cache sem prazo: só busca novidades ao clicar em Atualizar
+                    if (Date.now() - (cache.t || 0) < DESEMP_COOLDOWN) return; // alguém atualizou há pouco
+                }
+                try {
+                    const r = await buscarSetsDesempenho(playerId, (p, t) => { const m = document.getElementById('desemp_msg'); if (m && !cache) m.textContent = 'Carregando sets... ' + p + '/' + t; }, cache);
+                    const reg = { t: Date.now(), g: r.g, seen: r.seen, ord: r.ord };
+                    DESEMP_ESTADO.dados = r.g;
+                    try { localStorage.setItem(key, JSON.stringify(reg)); } catch (e) { /* ok */ }
+                    void salvarDesempenhoRemoto(playerId, reg);
+                    pronto();
+                } catch (e) {
+                    if (!cache) msg.textContent = 'Não foi possível carregar o desempenho agora. Tente novamente mais tarde.';
+                }
+            }
+
             // ===== Rankings do Tekken 8: ranking Brasil + séries/ligas em que o player aparece =====
             // Só aparece quando "Tekken 8" está nos jogos do player. Dados: data/ranking/*.json (workflow) e ligas do Start.gg.
             const T8_GAME_ID = 49783;
@@ -810,8 +986,8 @@
                                         </h1>
                                         ${realName ? `<p class="text-sm text-slate-400 font-medium truncate">${realName}</p>` : ''}
                                         <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 text-xs font-semibold pt-2 text-slate-300">
-                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700">TORNEIOS <strong class="text-white">${tournaments.length}</strong></span>
-                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700">WIN RATE <strong class="${wrClass}">${winrateAllTime}%</strong></span>
+                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700"><span id="chip-torneios-rot">TORNEIOS</span> <strong id="chip-torneios" class="text-white">${tournaments.length}</strong></span>
+                                            <span class="bg-slate-800 px-2.5 py-1 rounded border border-slate-700"><span id="chip-wr-rot">WIN RATE</span> <strong id="chip-wr" class="${wrClass}">${winrateAllTime}%</strong></span>
                                         </div>
                                     </div>
                                 </div>
@@ -834,26 +1010,6 @@
                                         <i class="fa-solid fa-rotate"></i> Atualizar
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- 4 STAT CARDS (DADOS START.GG) -->
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
-                                <div class="text-2xl font-black text-white">${totalWins} W</div>
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vitórias</div>
-                            </div>
-                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
-                                <div class="text-2xl font-black text-white">${totalLosses} L</div>
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Derrotas</div>
-                            </div>
-                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
-                                <div class="text-2xl font-black ${wrClass}">${winrateAllTime}%</div>
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Win Rate</div>
-                            </div>
-                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center space-y-1 min-w-0">
-                                <div class="text-2xl font-black text-white">${tournaments.length}</div>
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Torneios</div>
                             </div>
                         </div>
 
@@ -881,6 +1037,7 @@
                             `}
                         </div>
 
+                        ${montarHtmlDesempenho()}
                         ${jogosPlayer.includes('tekken8') ? montarHtmlRankingsT8() : ''}
 
                         ${montarHtmlUsoPersonagens(characterUsage, characterUsageUnavailable, characterUsagePartial, { characterUsageHistoryComplete, characterUsageEventCount, characterUsageSetCount })}
@@ -1617,6 +1774,7 @@
             }
 
             window.atualizarDados = function() {
+                DESEMP_FORCAR = true;
                 carregarPerfil(true);
             };
 
