@@ -28,15 +28,16 @@
       ? '<img src="' + ctx.banner + '" alt="Banner do torneio ' + String(t.name).replace(/"/g, '&quot;') + '" onerror="this.style.display=\'none\'">'
       : '';
 
-    // stream: mesma regra do card original (só aparece se o torneio tem streams)
+    // Plataformas ficam acima do título; AO VIVO permanece no status.
     var streamTag = '';
+    var platformTag = '';
     if (t.streams && t.streams.length > 0) {
       if (ctx.isLiveNow) {
         streamTag = '<span class="bc-live"><i class="animate-pulse"></i>AO VIVO</span>';
       } else {
         var tw = t.streams.some(function (s) { return s.streamSource === 'TWITCH'; });
         var yt = t.streams.some(function (s) { return s.streamSource === 'YOUTUBE'; });
-        streamTag = (tw ? '<span class="bc-st">TWITCH</span>' : '') + (yt ? '<span class="bc-st">YOUTUBE</span>' : '');
+        platformTag = (tw ? '<span class="bc-st">TWITCH</span>' : '') + (yt ? '<span class="bc-st">YOUTUBE</span>' : '');
       }
     }
 
@@ -73,6 +74,7 @@
       '<div class="bc-thumb">' + thumbImg + '<span class="bc-tag">' + String(ctx.typeVal).toUpperCase() + '</span></div>' +
       '<div class="bc-info">' +
         ((ligas || ctx.bracketBadgeHTML) ? '<div class="bc-badges">' + ligas + ctx.bracketBadgeHTML + '</div>' : '') +
+        (platformTag ? '<div class="bc-badges bc-stream-badges">' + platformTag + '</div>' : '') +
         '<h3>' + t.name + '</h3>' +
         '<div class="bc-meta">' + ctx.inscritos + ' inscrito' + plural + '<s>/</s>TO ' + ctx.toName + '<s>/</s>' + local + '</div>' +
         '<div class="bc-status"><i class="' + (aberta ? '' : 'off') + '"></i><b class="' + (aberta ? 'ok' : 'off') + '">' +
