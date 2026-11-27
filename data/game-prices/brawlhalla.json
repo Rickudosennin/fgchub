@@ -13,7 +13,8 @@
     "currentRetail": "0.00",
     "currentKeyshops": null,
     "historicalRetail": "0.00",
-    "historicalKeyshops": null
+    "historicalKeyshops": null,
+    "shopRetail": null
   },
-  "updatedAt": "2026-11-27T08:34:26.043Z"
+  "updatedAt": "2026-11-27T10:34:34.109Z"
 }

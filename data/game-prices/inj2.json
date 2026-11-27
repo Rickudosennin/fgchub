@@ -13,7 +13,8 @@
     "currentRetail": "12.74",
     "currentKeyshops": "13.49",
     "historicalRetail": "10.91",
-    "historicalKeyshops": "9.42"
+    "historicalKeyshops": "9.42",
+    "shopRetail": null
   },
-  "updatedAt": "2026-11-27T08:34:26.043Z"
+  "updatedAt": "2026-11-27T10:34:34.109Z"
 }
