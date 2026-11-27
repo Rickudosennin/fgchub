@@ -542,6 +542,67 @@ function iniciarTimer(id, registrationClosesAt, checkInData, eventStartAt, event
 function formatarDataGoogle(ts){return new Date(ts*1000).toISOString().replace(/-|:|\.\d+/g,"");}
 function gerarLinkGoogleCalendar(t){const i=formatarDataGoogle(t.startAt),f=formatarDataGoogle(t.startAt+7200),d=encodeURIComponent(`Inscrição: https://start.gg${t.url}`);return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t.name)}&dates=${i}/${f}&details=${d}`;}
 
+// Botão "Assistir": monta o link da stream a partir de streamName/streamSource (a API não devolve URL pronta). Injeção pós-render, não altera o card original.
+// Canais de YouTube conhecidos: o Start.gg só guarda o nome de exibição. Chave = nome minúsculo sem espaço/símbolo; valor = @handle. Adicione novos aqui.
+const YT_CANAIS = { 'wasfesports': '@wasfesports', 'wasf': '@wasfesports' };
+function linkDaStream(st) {
+    const nome = String(st.streamName || '').trim();
+    if (!nome) return '';
+    if (/^https?:\/\//i.test(nome)) return nome;
+    const src = String(st.streamSource || '').toUpperCase();
+    if (src === 'TWITCH') return 'https://twitch.tv/' + encodeURIComponent(nome);
+    if (src === 'YOUTUBE') {
+        if (nome.startsWith('@')) return 'https://youtube.com/' + nome;
+        const h = YT_CANAIS[nome.toLowerCase().replace(/[^a-z0-9]/g, '')];
+        if (h) return 'https://youtube.com/' + h;
+        if (/^UC[\w-]{22}$/.test(nome)) return 'https://youtube.com/channel/' + nome + '/live';
+        // Start.gg guarda o nome do canal -> assume @nome (sem espaços/símbolos); YT_CANAIS corrige handles que diferem do nome
+        const h2 = nome.replace(/[^\p{L}\p{N}_.-]/gu, '');
+        return h2 ? 'https://youtube.com/@' + encodeURIComponent(h2) : '';
+    }
+    return '';
+}
+function adicionarBotaoAssistir(t, card) {
+    try {
+        const links = (t.streams || []).map(st => ({ url: linkDaStream(st), src: String(st.streamSource || '').toUpperCase(), nome: String(st.streamName || '') })).filter(l => l.url);
+        if (!links.length) return;
+        const rot = { TWITCH: 'Twitch', YOUTUBE: 'YouTube' };
+        const bc = card.querySelector('.bc-sub');
+        const ordem = { TWITCH: 0, YOUTUBE: 1 };
+        links.sort((a, b) => (ordem[a.src] ?? 9) - (ordem[b.src] ?? 9)); // ordem fixa: Twitch à esquerda, YouTube à direita
+        const mostrar = links.slice(0, 2);
+        mostrar.slice().reverse().forEach(l => {
+            const txt = 'Assistir' + (rot[l.src] ? ' · ' + rot[l.src] : '');
+            const ytAttr = l.src === 'YOUTUBE' ? encodeURIComponent(l.nome) : '';
+            if (bc) {
+                const ico = l.src === 'TWITCH' ? 'fa-twitch' : (l.src === 'YOUTUBE' ? 'fa-youtube' : '');
+                bc.insertAdjacentHTML('afterbegin', `<a class="bc-btn bc-watch${mostrar.length === 1 ? ' bc-watch-solo' : ''}" href="${l.url}" target="_blank" rel="noopener" title="${txt} (ao vivo)" aria-label="${txt}" data-yt-stream="${ytAttr}" onclick="event.stopPropagation();">${ico ? `<i class="fa-brands ${ico}" aria-hidden="true"></i>` : ''}${rot[l.src] || 'Assistir'}</a>`);
+            } else {
+                const box = card.querySelector('.mt-4.space-y-2');
+                if (box) box.insertAdjacentHTML('afterbegin', `<a href="${l.url}" target="_blank" rel="noopener" data-yt-stream="${ytAttr}" class="block text-center btn-calendar text-slate-300 font-bold py-2 rounded-lg transition uppercase text-[10px] tracking-wider" onclick="event.stopPropagation();"><i class="fa-solid fa-tv mr-1"></i> ${txt}</a>`);
+            }
+        });
+        atualizarLinksYoutubeComId(t, card);
+    } catch (e) { /* botão é opcional */ }
+}
+// YouTube: o TO coloca o código do canal (UC...) no campo da stream do Start.gg -> busca streamId à parte (query isolada: se falhar, mantém o link por nome)
+async function atualizarLinksYoutubeComId(t, card) {
+    try {
+        const ancoras = Array.from(card.querySelectorAll('a[data-yt-stream]')).filter(a => a.dataset.ytStream);
+        if (!ancoras.length) return;
+        const json = await callStartGG(`query($id: ID!) { tournament(id: $id) { streams { streamName streamSource streamId } } }`, { id: t.id });
+        const lista = json?.data?.tournament?.streams || [];
+        ancoras.forEach(a => {
+            const nome = decodeURIComponent(a.dataset.ytStream);
+            const st = lista.find(x => String(x.streamSource).toUpperCase() === 'YOUTUBE' && String(x.streamName || '') === nome);
+            const id = st ? String(st.streamId || '').trim() : '';
+            if (/^UC[\w-]{22}$/.test(id)) a.href = 'https://youtube.com/channel/' + id;
+            else if (id.startsWith('@')) a.href = 'https://youtube.com/' + id;
+            else if (/^https?:\/\/(www\.)?youtube\.com\//i.test(id)) a.href = id;
+        });
+    } catch (e) { /* silencioso */ }
+}
+
 // Fallback do badge de fase: stream queue do Start.gg só cobre Twitch; aqui busca set ACTIVE do evento (não altera o fluxo principal)
 async function buscarBadgeAoVivoFallback(t, card) {
     try {
@@ -718,6 +779,7 @@ async function pesquisar() {
                 card.style.animationDelay = `${Math.min(i * 0.05, 0.5)}s`;
             }
             container.appendChild(card);
+            adicionarBotaoAssistir(t, card);
             if (!usaLinhaBc) aplicarTiltCard(card);
             // Fallback (YouTube/sem stream queue): sem badge da fila -> busca set ACTIVE direto no evento, em segundo plano
             if (!bracketBadgeHTML) { buscarBadgeAoVivoFallback(t, card); }
