@@ -56,11 +56,18 @@
     catch { return (amount.toFixed(2) + ' ' + (currency || '')).trim(); }
   }
 
-  function priceCard(title, value, historical, currency, kind) {
+  const SHOPS = { steam: { name: 'Steam', file: 'steam.svg' } };
+  function shopLogo(shop) {
+    if (!Object.prototype.hasOwnProperty.call(SHOPS, shop)) return '';
+    const info = SHOPS[shop];
+    return '<img class="game-price-shop" src="imagens/shops/' + info.file + '" alt="' + info.name + '" title="' + info.name + '" style="position:absolute;top:12px;right:14px;height:20px;width:auto;opacity:.9;pointer-events:none" onerror="this.remove()">';
+  }
+
+  function priceCard(title, value, historical, currency, kind, shop) {
     const current = value == null ? 'Indisponível' : money(value, currency);
     const low = historical == null ? '—' : money(historical, currency);
-    return '<article class="game-price-card ' + kind + '">' +
-      '<span class="game-price-label">' + title + '</span>' +
+    return '<article class="game-price-card ' + kind + '"' + (shop ? ' style="position:relative"' : '') + '>' +
+      '<span class="game-price-label">' + title + '</span>' + shopLogo(shop) +
       '<strong class="game-price-value">' + current + '</strong>' +
       '<span class="game-price-history">Menor preço histórico: ' + low + '</span></article>';
   }
@@ -105,7 +112,7 @@
       } catch (_) {}
       content.innerHTML = (hasCurrent
         ? '<div class="game-prices-grid">' +
-          priceCard('Lojas oficiais (menor preço)', p.currentRetail, p.historicalRetail, data.currency, 'retail') +
+          priceCard('Lojas oficiais (menor preço)', p.currentRetail, p.historicalRetail, data.currency, 'retail', p.shopRetail) +
           priceCard('Keyshops (menor preço)', p.currentKeyshops, p.historicalKeyshops, data.currency, 'keyshop') +
           '</div>'
         : '<p class="game-prices-message">Sem ofertas atuais para esta região.</p>') +
